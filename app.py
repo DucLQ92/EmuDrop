@@ -121,6 +121,7 @@ class GameDownloaderApp:
         self.held_hat_button = sdl2.SDL_HAT_CENTERED
         self.last_hat_time: int = 0
         self.joystick = None
+        self.needs_redraw = True
 
         try:
             # Initialize SDL subsystems
@@ -359,25 +360,39 @@ class GameDownloaderApp:
             # Show loading screen
             self._simulate_loading()
             
+            last_heartbeat = time.time()
+            self.needs_redraw = True
+            
             while running:
                 try:
                     # Handle timing
                     current_time = sdl2.SDL_GetTicks()
                     delta_time = current_time - last_time
                     last_time = current_time
+                    now = time.time()
                     
                     # Process events
-                    running = self._process_events()
+                    had_event, running = self._process_events()
+                    if had_event:
+                        self.needs_redraw = True
                     
                     # Update game state
                     if self.view_state.mode == 'games':
-                        self._update_game_image_timer(delta_time)
+                        if self._update_game_image_timer(delta_time):
+                            self.needs_redraw = True
                     
                     # Update downloads
-                    self._update_downloads()
-                    
-                    # Render frame
-                    self._render()
+                    if len(self.downloads) > 0:
+                        self._update_downloads()
+                        self.needs_redraw = True
+                        
+                    if self.alert_manager.is_showing():
+                        self.needs_redraw = True
+                        
+                    # Periodic heartbeat (every 2.0s) to refresh status / clock / profiler info
+                    if now - last_heartbeat >= 2.0:
+                        self.needs_redraw = True
+                        last_heartbeat = now
                     
                     # Determine activity state for diagnostic logging
                     is_active = (
@@ -387,8 +402,13 @@ class GameDownloaderApp:
                         or self.view_state.showing_confirmation 
                         or self.alert_manager.is_showing() 
                         or self.view_state.showing_keyboard 
-                        or (self.view_state.mode == 'games' and getattr(self, 'game_hold_timer', 0) < Config.IMAGE_LOAD_DELAY)
+                        or (self.view_state.mode == 'games' and not self.is_image_loaded)
                     )
+                    
+                    # Render frame ONLY when redraw is needed (saves ~75% CPU load when idle)
+                    if self.needs_redraw:
+                        self._render()
+                        self.needs_redraw = False
                     
                     # Frame pacing using kernel sleep to guarantee true CPU idle state
                     frame_work_time = sdl2.SDL_GetTicks() - current_time
@@ -410,25 +430,29 @@ class GameDownloaderApp:
         finally:
             self.cleanup()
 
-    def _process_events(self) -> bool:
+    def _process_events(self) -> Tuple[bool, bool]:
         """Process SDL events.
         
         Returns:
-            bool: False if application should exit, True otherwise.
+            Tuple[bool, bool]: (had_event, running)
+                had_event: True if any input/window event occurred.
+                running: False if application should exit, True otherwise.
         """
         event = sdl2.SDL_Event()
+        had_event = False
         while sdl2.SDL_PollEvent(ctypes.byref(event)) != 0:
+            had_event = True
             if event.type == sdl2.SDL_QUIT:
-                return False
+                return True, False
             elif event.type == sdl2.SDL_WINDOWEVENT:
                 self._handle_window_event(event)
             elif event.type == sdl2.SDL_KEYDOWN:
                 if not self._handle_input_event(event.key.keysym.sym):
-                    return False
+                    return True, False
             elif event.type == sdl2.SDL_JOYBUTTONDOWN:
                 button = event.jbutton.button
                 if not self._handle_controller_button(button):
-                    return False
+                    return True, False
                 self.held_joy_buttons[button] = time.time()
             elif event.type == sdl2.SDL_JOYBUTTONUP:
                 button = event.jbutton.button
@@ -436,24 +460,26 @@ class GameDownloaderApp:
             elif event.type == sdl2.SDL_JOYHATMOTION:
                 button = event.jhat.value
                 if not self._handle_d_pad_controller_button(button):
-                    return False
+                    return True, False
                 self.held_hat_button = button
                 self.last_hat_time = time.time()
         
         now = time.time()
         for button, last_time in self.held_joy_buttons.items():
             if now - last_time >= Config.CONTROLLER_BUTTON_REPEAT_RATE / 1000.0:
+                had_event = True
                 if not self._handle_controller_button(button):
-                    return False
+                    return True, False
                 self.held_joy_buttons[button] = now
                 
         if self.held_hat_button != sdl2.SDL_HAT_CENTERED:
-                if now - self.last_hat_time >= Config.CONTROLLER_BUTTON_REPEAT_RATE / 1000.0:
-                    if not self._handle_d_pad_controller_button(self.held_hat_button):
-                        return False
-                    self.last_hat_time = now
+            if now - self.last_hat_time >= Config.CONTROLLER_BUTTON_REPEAT_RATE / 1000.0:
+                had_event = True
+                if not self._handle_d_pad_controller_button(self.held_hat_button):
+                    return True, False
+                self.last_hat_time = now
         
-        return True
+        return had_event, True
     
     def _handle_window_event(self, event) -> None:
         """Handle window events like resize."""
@@ -463,6 +489,7 @@ class GameDownloaderApp:
             Config.update_screen_size(width, height)
             # Reinitialize views with new dimensions
             self._initialize_views()
+            self.needs_redraw = True
             logger.info(f"Window resized to: {width}x{height}")
 
     def _update_downloads(self) -> None:
@@ -534,22 +561,29 @@ class GameDownloaderApp:
         except Exception as e:
             logger.error(f"Error showing loading screen: {str(e)}", exc_info=True)
 
-    def _update_game_image_timer(self, delta_time: int) -> None:
+    def _update_game_image_timer(self, delta_time: int) -> bool:
         """Update the game image loading timer.
         
         Args:
             delta_time: Time elapsed since last frame in milliseconds.
+            
+        Returns:
+            bool: True if image loading state changed and requires redraw.
         """
         if self.last_selected_game != self.nav_state.selected_game:
             # Reset timer when selection changes
             self.game_hold_timer = 0
             self.is_image_loaded = False
             self.last_selected_game = self.nav_state.selected_game
+            return True
         else:
             # Increment timer while on the same game
-            self.game_hold_timer += delta_time
-            if self.game_hold_timer >= Config.IMAGE_LOAD_DELAY and not self.is_image_loaded:
-                self.is_image_loaded = True
+            if not self.is_image_loaded:
+                self.game_hold_timer += delta_time
+                if self.game_hold_timer >= Config.IMAGE_LOAD_DELAY:
+                    self.is_image_loaded = True
+                    return True
+        return False
 
     def _handle_controller_button(self, button):
         # Map controller buttons to keyboard events
@@ -954,6 +988,8 @@ class GameDownloaderApp:
             self.nav_state.selected_source = 0
             self.nav_state.source_page = 0
             self._reset_game_selection()
+            
+        self.needs_redraw = True
 
     def _reset_game_selection(self) -> None:
         """Reset all game selection state to initial values."""
