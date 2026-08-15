@@ -6,6 +6,7 @@ import sdl2
 from utils.theme import Theme
 from utils.config import Config
 from utils.logger import logger
+from utils.i18n import _t
 from .base_view import BaseView
 
 class KeyboardView(BaseView):
@@ -125,7 +126,7 @@ class KeyboardView(BaseView):
                     )
             else:
                 self.render_text(
-                    "Type to search games...",
+                    _t("type_to_search"),
                     text_x,
                     text_y,
                     color=(120, 120, 120),

@@ -115,34 +115,34 @@ class DownloadView(BaseView):
             
         elif status["state"] == "processing":
             self._render_text_progress(
-                "Processing",
-                status['current_operation'],
+                _t("processing"),
+                status.get('current_operation', ''),
                 y_offset
             )
             self._render_progress_bar(y_offset, status["progress"])
         
         elif status["state"] == "scraping":
             self._render_text_progress(
-                "Scraping",
-                "Please wait while cover image is being scrapped",
+                _t("scraping"),
+                _t("scraping_message"),
                 y_offset
             )
             
         elif status["state"] == "cancelling":
             self._render_text_progress(
-                "Cancelling",
-                "Please wait while files being removed",
+                _t("cancelling"),
+                _t("cancelling_message"),
                 y_offset
             )
             
         elif status["state"] == "queued":
-            queue_message = f"Waiting for other downloads to complete (Queue position: {status['queue_position']})"
-            self._render_text_progress("Queued", queue_message, y_offset)
+            queue_message = _t("queued_message", position=status.get('queue_position', 1))
+            self._render_text_progress(_t("queued"), queue_message, y_offset)
             
         elif status["state"] == "error":
             self._render_text_progress(
-                "Error",
-                status["error_message"],
+                _t("error"),
+                status.get("error_message", ""),
                 y_offset
             )
 
@@ -183,22 +183,22 @@ class DownloadView(BaseView):
         # Format speed
         speed = status["download_speed"]
         if speed > 1024 * 1024:  # MB/s
-            speed_text = f"Speed: {speed / (1024 * 1024):.1f} MB/s"
+            speed_text = f"{_t('speed')}: {speed / (1024 * 1024):.1f} MB/s"
         else:  # KB/s
-            speed_text = f"Speed: {speed / 1024:.1f} KB/s"
+            speed_text = f"{_t('speed')}: {speed / 1024:.1f} KB/s"
             
         # Format size
         current = status["current_size"]
         total = status["total_size"]
-        size_text = f"Size: {self._format_size(current)} / {self._format_size(total)}"
+        size_text = f"{_t('size')}: {self._format_size(current)} / {self._format_size(total)}"
         
         # Calculate ETA
         if speed > 0:
             remaining_bytes = total - current
             eta_seconds = remaining_bytes / speed
-            eta_text = f"ETA: {self._format_time(eta_seconds)}"
+            eta_text = f"{_t('eta')}: {self._format_time(eta_seconds)}"
         else:
-            eta_text = "ETA: Calculating..."
+            eta_text = f"{_t('eta')}: {_t('calculating')}"
             
         # Render progress information
         text_y = y_offset + Config.DOWNLOAD_VIEW_TEXT_Y_OFFSET
@@ -223,7 +223,7 @@ class DownloadView(BaseView):
     def _render_paused_status(self, x: int, y: int) -> None:
         """Render paused status text"""
         self.render_text(
-            "Paused",
+            _t("paused"),
             x + Config.DOWNLOAD_VIEW_TEXT_SPACING,
             y,
             color=Theme.TEXT_ACCENT

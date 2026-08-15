@@ -908,7 +908,7 @@ class GameDownloaderApp:
             # Start loading animation in a separate thread
             def animate_loading():
                 while not hasattr(self, '_loading_complete'):
-                    self.loading_screen.render(0.5, "Retreiving Games List...")
+                    self.loading_screen.render(0.5, _t("retrieving_games"))
                     sdl2.SDL_RenderPresent(self.renderer)
                     sdl2.SDL_Delay(Config.LOADING_ANIMATION_SPEED)
             

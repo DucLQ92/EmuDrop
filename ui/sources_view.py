@@ -47,7 +47,7 @@ class SourcesView(BaseView):
             
             if not sources:
                 self.render_text(
-                        "No sources available",
+                        _t("no_sources_found"),
                         Config.SCREEN_WIDTH // 2,
                         Config.SCREEN_HEIGHT // 2,
                         color=Theme.TEXT_SECONDARY,

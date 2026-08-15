@@ -46,7 +46,7 @@ class platformsView(BaseView):
             total_platforms = len(platforms)
             if total_platforms == 0:
                 self.render_text(
-                    "No platforms available",
+                    _t("no_platforms_found"),
                     Config.SCREEN_WIDTH // 2,
                     Config.SCREEN_HEIGHT // 2,
                     color=Theme.TEXT_SECONDARY,
