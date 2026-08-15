@@ -239,24 +239,21 @@ class GameDownloaderApp:
         return window
 
     def _create_renderer(self) -> sdl2.SDL_Renderer:
-        """Create the SDL renderer, prioritizing hardware acceleration with VSync."""
+        """Create the SDL renderer, prioritizing software rendering with VSync for handheld devices."""
         with self._sdl_error_context("Renderer creation"):
-            # 1. Try hardware accelerated renderer with VSync first (Mali GPU on ARM handhelds)
-            renderer_flags = sdl2.SDL_RENDERER_ACCELERATED | sdl2.SDL_RENDERER_PRESENTVSYNC
+            # Software renderer is proven, stable, and responsive for TrimUI and embedded devices
+            renderer_flags = sdl2.SDL_RENDERER_SOFTWARE | sdl2.SDL_RENDERER_PRESENTVSYNC
             renderer = sdl2.SDL_CreateRenderer(self.window, -1, renderer_flags)
             
-            # 2. Try hardware accelerated without VSync if first attempt failed
-            if not renderer:
-                renderer = sdl2.SDL_CreateRenderer(self.window, -1, sdl2.SDL_RENDERER_ACCELERATED)
-            
-            # 3. Fallback to software renderer if no hardware acceleration available (e.g. headless/VM)
-            if not renderer:
-                logger.warning("Hardware accelerated renderer failed, falling back to software renderer")
-                renderer_flags = sdl2.SDL_RENDERER_SOFTWARE | sdl2.SDL_RENDERER_PRESENTVSYNC
-                renderer = sdl2.SDL_CreateRenderer(self.window, -1, renderer_flags)
-                
             if not renderer:
                 renderer = sdl2.SDL_CreateRenderer(self.window, -1, sdl2.SDL_RENDERER_SOFTWARE)
+                
+            if not renderer:
+                renderer = sdl2.SDL_CreateRenderer(
+                    self.window, 
+                    -1,
+                    sdl2.SDL_RENDERER_ACCELERATED | sdl2.SDL_RENDERER_PRESENTVSYNC
+                )
             
             if not renderer:
                 raise SDLError(sdl2.SDL_GetError().decode('utf-8'))
@@ -381,23 +378,10 @@ class GameDownloaderApp:
                     # Render frame
                     self._render()
                     
-                    # Dynamic Power Saving: Determine if system is active or idle
-                    is_active = (
-                        len(self.downloads) > 0 
-                        or bool(self.held_joy_buttons) 
-                        or self.held_hat_button != sdl2.SDL_HAT_CENTERED 
-                        or self.view_state.showing_confirmation 
-                        or self.alert_manager.is_showing() 
-                        or self.view_state.showing_keyboard 
-                        or (self.view_state.mode == 'games' and getattr(self, 'game_hold_timer', 0) < Config.IMAGE_LOAD_DELAY)
-                    )
-                    
-                    target_frame_time = Config.FRAME_TIME if is_active else Config.FRAME_TIME_IDLE
-                    
-                    # Cap frame rate and sleep CPU to prevent overheating
+                    # Cap frame rate at 30 FPS with responsive event polling
                     frame_time = sdl2.SDL_GetTicks() - current_time
-                    if frame_time < target_frame_time:
-                        sdl2.SDL_Delay(target_frame_time - frame_time)
+                    if frame_time < Config.FRAME_TIME:
+                        sdl2.SDL_Delay(Config.FRAME_TIME - frame_time)
                         
                 except Exception as e:
                     logger.error(f"Error in main loop: {str(e)}", exc_info=True)
