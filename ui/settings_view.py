@@ -32,6 +32,7 @@ class SettingsView(BaseView):
         if self.selected_index == 0:
             # Toggle language
             i18n.toggle_language()
+            BaseView.clear_cache()
 
     def render(self, active_downloads_count: int = 0) -> None:
         """Render the Settings view."""

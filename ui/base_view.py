@@ -15,6 +15,12 @@ from utils.i18n import _t, i18n
 class BaseView:
     """Base class for all views in the application"""
     
+    # Class-level cache for static background and text textures (saves huge CPU load)
+    _bg_texture = None
+    _bg_texture_size = (0, 0)
+    _text_cache: Dict[Tuple, Tuple[sdl2.SDL_Texture, int, int]] = {}
+    _text_cache_keys: List[Tuple] = []
+    
     def __init__(self, renderer, font=None, title_font=None, card_font=None, control_font=None):
         """Initialize the base view with common components and scalable typography"""
         self.renderer = renderer
@@ -24,6 +30,60 @@ class BaseView:
         control_font_size = max(15, int(17 * Config.SCALE_FACTOR))
         self.control_font = control_font if control_font else (self._load_font(control_font_size) or self.font)
         self.texture_manager = None
+        self._ensure_bg_texture()
+        
+    @classmethod
+    def clear_cache(cls):
+        """Clear all cached textures on shutdown or language change"""
+        if cls._bg_texture:
+            sdl2.SDL_DestroyTexture(cls._bg_texture)
+            cls._bg_texture = None
+            cls._bg_texture_size = (0, 0)
+            
+        for tex, _, _ in cls._text_cache.values():
+            if tex:
+                sdl2.SDL_DestroyTexture(tex)
+        cls._text_cache.clear()
+        cls._text_cache_keys.clear()
+        
+    def _ensure_bg_texture(self) -> None:
+        """Pre-bake a sleek static gradient background texture once (0 CPU overhead in render loop)"""
+        w, h = Config.SCREEN_WIDTH, Config.SCREEN_HEIGHT
+        if BaseView._bg_texture and BaseView._bg_texture_size == (w, h):
+            return
+            
+        try:
+            if BaseView._bg_texture:
+                sdl2.SDL_DestroyTexture(BaseView._bg_texture)
+                BaseView._bg_texture = None
+                
+            surface = sdl2.SDL_CreateRGBSurfaceWithFormat(0, w, h, 32, sdl2.SDL_PIXELFORMAT_RGBA32)
+            if not surface:
+                surface = sdl2.SDL_CreateRGBSurface(0, w, h, 32, 0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000)
+                
+            if surface:
+                pixels = ctypes.cast(surface.contents.pixels, ctypes.POINTER(ctypes.c_uint32))
+                pitch = surface.contents.pitch // 4
+                r0, g0, b0 = Theme.BG_DARKER[:3]
+                r1, g1, b1 = Theme.BG_DARK[:3]
+                
+                for y in range(h):
+                    prog = y / h
+                    r = int(r0 + (r1 - r0) * prog)
+                    g = int(g0 + (g1 - g0) * prog)
+                    b = int(b0 + (b1 - b0) * prog)
+                    # 32-bit RGBA integer
+                    color_val = (255 << 24) | (b << 16) | (g << 8) | r
+                    row_offset = y * pitch
+                    for x in range(w):
+                        pixels[row_offset + x] = color_val
+                        
+                BaseView._bg_texture = sdl2.SDL_CreateTextureFromSurface(self.renderer, surface)
+                BaseView._bg_texture_size = (w, h)
+                sdl2.SDL_FreeSurface(surface)
+        except Exception as e:
+            logger.error(f"Error pre-baking background texture: {e}", exc_info=True)
+            BaseView._bg_texture = None
         
     def set_texture_manager(self, texture_manager):
         """Set the texture manager instance"""
@@ -63,31 +123,15 @@ class BaseView:
         )
         
     def render_background(self, simplified=False) -> None:
-        """Render a modern gradient background with subtle animation"""
+        """Render background instantly with 0 CPU overhead using pre-baked GPU texture"""
         try:
-            if simplified:
+            self._ensure_bg_texture()
+            if BaseView._bg_texture:
+                sdl2.SDL_RenderCopy(self.renderer, BaseView._bg_texture, None, None)
+            else:
                 sdl2.SDL_SetRenderDrawColor(self.renderer, *Theme.BG_DARK, 255)
                 bg_rect = sdl2.SDL_Rect(0, 0, Config.SCREEN_WIDTH, Config.SCREEN_HEIGHT)
                 sdl2.SDL_RenderFillRect(self.renderer, bg_rect)
-                return
-                
-            current_time = time.time()
-            animation = (math.sin(current_time) + 1) * 0.5
-            
-            for y in range(Config.SCREEN_HEIGHT):
-                progress = y / Config.SCREEN_HEIGHT
-                base_r = int(Theme.BG_DARKER[0] + (Theme.BG_DARK[0] - Theme.BG_DARKER[0]) * progress)
-                base_g = int(Theme.BG_DARKER[1] + (Theme.BG_DARK[1] - Theme.BG_DARKER[1]) * progress)
-                base_b = int(Theme.BG_DARKER[2] + (Theme.BG_DARK[2] - Theme.BG_DARKER[2]) * progress)
-                
-                r = int(base_r + animation * 10)
-                g = int(base_g + animation * 10)
-                b = int(base_b + animation * 10)
-                
-                sdl2.SDL_SetRenderDrawColor(self.renderer, r, g, b, 255)
-                line = sdl2.SDL_Rect(0, y, Config.SCREEN_WIDTH, 1)
-                sdl2.SDL_RenderFillRect(self.renderer, line)
-
         except Exception as e:
             logger.error(f"Error rendering background: {e}", exc_info=True)
             
@@ -138,37 +182,58 @@ class BaseView:
         except Exception as e:
             logger.error(f"Error rendering card: {e}", exc_info=True)
             
-    def create_text_texture(self, text: str, color: tuple = Theme.TEXT_PRIMARY, font=None) -> Tuple[Optional[sdl2.SDL_Texture], int, int]:
-        """Create a texture from text using UTF-8 encoding with optional custom font"""
+    def get_cached_text_texture(self, text: str, color: tuple = Theme.TEXT_PRIMARY, font=None) -> Tuple[Optional[sdl2.SDL_Texture], int, int]:
+        """Get or create cached texture from text using UTF-8 encoding (avoids per-frame font rasterization)"""
         try:
             target_font = font if font else self.font
-            if not target_font:
+            if not target_font or not text:
                 return None, 0, 0
-            text_color = sdl2.SDL_Color(*color)
+                
+            font_id = ctypes.cast(target_font, ctypes.c_void_p).value
+            color_rgb = (int(color[0]), int(color[1]), int(color[2]))
+            cache_key = (text, color_rgb, font_id)
+            
+            if cache_key in BaseView._text_cache:
+                return BaseView._text_cache[cache_key]
+                
+            text_color = sdl2.SDL_Color(*color_rgb)
             surface = sdl2.sdlttf.TTF_RenderUTF8_Blended(target_font, text.encode('utf-8'), text_color)
             if surface:
                 texture = sdl2.SDL_CreateTextureFromSurface(self.renderer, surface)
                 width = surface.contents.w
                 height = surface.contents.h
                 sdl2.SDL_FreeSurface(surface)
-                return texture, width, height
+                if texture:
+                    # LRU Eviction: keep cache size bounded to 256 textures
+                    if len(BaseView._text_cache) >= 256:
+                        oldest_key = BaseView._text_cache_keys.pop(0)
+                        old_tex, _, _ = BaseView._text_cache.pop(oldest_key, (None, 0, 0))
+                        if old_tex:
+                            sdl2.SDL_DestroyTexture(old_tex)
+                    
+                    BaseView._text_cache[cache_key] = (texture, width, height)
+                    BaseView._text_cache_keys.append(cache_key)
+                    return texture, width, height
         except Exception as e:
-            logger.error(f"Error creating text texture: {e}", exc_info=True)
+            logger.error(f"Error getting cached text texture: {e}", exc_info=True)
         return None, 0, 0
+
+    def create_text_texture(self, text: str, color: tuple = Theme.TEXT_PRIMARY, font=None) -> Tuple[Optional[sdl2.SDL_Texture], int, int]:
+        """Get text texture with caching"""
+        return self.get_cached_text_texture(text, color, font)
 
     def render_text(self, text: str, x: int, y: int, 
                    color: tuple = Theme.TEXT_PRIMARY, 
                    center: bool = False,
                    font=None) -> None:
-        """Render text at the specified position"""
+        """Render text at the specified position using zero-allocation texture caching"""
         try:
-            texture, width, height = self.create_text_texture(text, color, font=font)
+            texture, width, height = self.get_cached_text_texture(text, color, font=font)
             if texture:
                 if center:
                     x -= width // 2
-                rect = sdl2.SDL_Rect(int(x), int(y), width, height)
+                rect = sdl2.SDL_Rect(int(x), int(y), int(width), int(height))
                 sdl2.SDL_RenderCopy(self.renderer, texture, None, rect)
-                sdl2.SDL_DestroyTexture(texture)
         except Exception as e:
             logger.error(f"Error rendering text: {e}", exc_info=True)
             
@@ -247,17 +312,16 @@ class BaseView:
             dst_rect = sdl2.SDL_Rect(int(x), int(y), int(render_width), int(render_height))
             sdl2.SDL_RenderCopy(self.renderer, texture, None, dst_rect)
             
-            # 2. Render label text next to icon using control_font
+            # 2. Render label text next to icon using control_font with caching
             label_key = self.CONTROL_LABEL_KEYS.get(image_name)
             label_text = _t(label_key) if label_key else ""
             if label_text:
-                label_tex, label_w, label_h = self.create_text_texture(label_text, (225, 230, 240), font=self.control_font)
+                label_tex, label_w, label_h = self.get_cached_text_texture(label_text, (225, 230, 240), font=self.control_font)
                 if label_tex:
                     gap = max(4, int(6 * Config.SCALE_FACTOR))
                     text_y = y + (render_height - label_h) // 2
                     text_dst = sdl2.SDL_Rect(int(x + render_width + gap), int(text_y), int(label_w), int(label_h))
                     sdl2.SDL_RenderCopy(self.renderer, label_tex, None, text_dst)
-                    sdl2.SDL_DestroyTexture(label_tex)
                     return render_width + gap + label_w
                     
             return render_width

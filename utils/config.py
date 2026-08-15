@@ -20,8 +20,10 @@ class Config:
     SCALE_Y = SCREEN_HEIGHT / BASE_SCREEN_HEIGHT
     SCALE_FACTOR = min(SCALE_X, SCALE_Y)  # Use minimum to maintain aspect ratio
     
-    FPS_LIMIT_LOW_POWER = 30  # Lower FPS limit for devices like Trimui Smart Pro
+    FPS_LIMIT_LOW_POWER = 30  # Active FPS limit for handhelds
     FRAME_TIME = int(1000 / FPS_LIMIT_LOW_POWER)  # Frame time in milliseconds (33.33ms for 30 FPS)
+    FPS_LIMIT_IDLE = 15  # Idle FPS limit to keep CPU cool and save battery
+    FRAME_TIME_IDLE = int(1000 / FPS_LIMIT_IDLE)  # Frame time in milliseconds (66.67ms for 15 FPS)
 
     # Directory paths
     BASE_DIR = os.path.abspath(os.path.dirname(sys.argv[0]))
