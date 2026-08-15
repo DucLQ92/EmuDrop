@@ -100,6 +100,10 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "lang_vi": "Tiếng Việt",
         "hint_change": "Press ◄ ► or A to change",
         "hint_settings_saved": "Settings saved successfully",
+        "credits_box_title": "✨ EmuDrop - Custom Edition",
+        "credits_mod_by": "👤 Mod & UI Optimization: DucLQ (github.com/DucLQ92)",
+        "credits_base_on": "🔗 Original Base: Ahmad El-khatib (https://github.com/ahmadteeb/EmuDrop)",
+        "credits_community": "💡 Open-source & Free for the Retro Handheld Community",
     },
     "vi": {
         # App & General
@@ -191,6 +195,10 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "lang_vi": "Tiếng Việt",
         "hint_change": "Nhấn ◄ ► hoặc A để đổi",
         "hint_settings_saved": "Đã lưu cài đặt",
+        "credits_box_title": "✨ EmuDrop - Bản Việt Hóa & Tối Ưu Hệ Thống",
+        "credits_mod_by": "👤 Mod & Tối ưu giao diện: DucLQ (github.com/DucLQ92)",
+        "credits_base_on": "🔗 Dự án gốc: Ahmad El-khatib (https://github.com/ahmadteeb/EmuDrop)",
+        "credits_community": "💡 Phát hành miễn phí phục vụ cộng đồng máy chơi game cầm tay",
     }
 }
 

@@ -52,10 +52,10 @@ class SettingsView(BaseView):
                 self._render_active_download_count(active_downloads_count)
 
             # 2. Render Settings Cards / Items
-            card_start_y = int(Config.SCREEN_HEIGHT * 0.14)
+            card_start_y = int(Config.SCREEN_HEIGHT * 0.11)
             card_w = Config.SCREEN_WIDTH - (Config.CONTROL_MARGIN * 2)
-            card_h = max(70, int(85 * Config.SCALE_Y))
-            card_spacing = max(12, int(18 * Config.SCALE_Y))
+            card_h = max(56, int(66 * Config.SCALE_Y))
+            card_spacing = max(8, int(10 * Config.SCALE_Y))
 
             settings_data = [
                 {
@@ -74,8 +74,8 @@ class SettingsView(BaseView):
                 },
                 {
                     "title": _t("setting_version"),
-                    "desc": "Cross-Platform Retro Downloader",
-                    "value": "v2.1 (ARM64 NextUI)",
+                    "desc": "Cross-Platform Retro Game Downloader",
+                    "value": "v2.1 (NextUI ARM64)",
                     "is_interactive": False,
                     "accent_val": False,
                 }
@@ -117,7 +117,7 @@ class SettingsView(BaseView):
 
                 # Draw Setting Title
                 title_x = Config.CONTROL_MARGIN + max(16, int(22 * Config.SCALE_X))
-                title_y = cur_y + max(10, int(14 * Config.SCALE_Y))
+                title_y = cur_y + max(8, int(11 * Config.SCALE_Y))
                 self.render_text(
                     item["title"],
                     title_x,
@@ -128,13 +128,14 @@ class SettingsView(BaseView):
                 )
 
                 # Draw Setting Description (sub-text)
-                desc_y = title_y + max(24, int(30 * Config.SCALE_Y))
+                desc_y = title_y + max(22, int(26 * Config.SCALE_Y))
                 self.render_text(
                     item["desc"],
                     title_x,
                     desc_y,
                     color=Theme.TEXT_SECONDARY,
-                    center=False
+                    center=False,
+                    font=self.control_font
                 )
 
                 # Draw Value on the Right Side of Card
@@ -155,16 +156,86 @@ class SettingsView(BaseView):
                 )
 
             # 3. Hint below cards
-            hint_y = card_start_y + len(settings_data) * (card_h + card_spacing) + int(10 * Config.SCALE_Y)
+            hint_y = card_start_y + len(settings_data) * (card_h + card_spacing) + int(8 * Config.SCALE_Y)
             self.render_text(
                 _t("hint_change"),
                 Config.SCREEN_WIDTH // 2,
                 hint_y,
                 color=Theme.TEXT_SECONDARY,
-                center=True
+                center=True,
+                font=self.control_font
             )
 
-            # 4. Render Bottom Control Guides
+            # 4. Render Credits & Attribution Box
+            credits_y = hint_y + max(20, int(26 * Config.SCALE_Y))
+            credits_h = max(135, int(155 * Config.SCALE_Y))
+            credits_rect = sdl2.SDL_Rect(
+                int(Config.CONTROL_MARGIN),
+                int(credits_y),
+                int(card_w),
+                int(credits_h)
+            )
+
+            # Glassmorphic dark container
+            sdl2.SDL_SetRenderDrawBlendMode(self.renderer, sdl2.SDL_BLENDMODE_BLEND)
+            sdl2.SDL_SetRenderDrawColor(self.renderer, 24, 28, 36, 220)
+            sdl2.SDL_RenderFillRect(self.renderer, credits_rect)
+
+            # Outer border with subtle cyan/purple tint
+            sdl2.SDL_SetRenderDrawColor(self.renderer, 70, 85, 115, 200)
+            sdl2.SDL_RenderDrawRect(self.renderer, credits_rect)
+
+            # Left accent stripe
+            accent_bar = sdl2.SDL_Rect(int(Config.CONTROL_MARGIN), int(credits_y), 5, int(credits_h))
+            sdl2.SDL_SetRenderDrawColor(self.renderer, 0, 200, 240, 255)
+            sdl2.SDL_RenderFillRect(self.renderer, accent_bar)
+
+            # Text items inside Credits Box
+            box_pad_x = Config.CONTROL_MARGIN + max(18, int(24 * Config.SCALE_X))
+            line_start_y = credits_y + max(12, int(16 * Config.SCALE_Y))
+            line_spacing = max(24, int(30 * Config.SCALE_Y))
+
+            # Header
+            self.render_text(
+                _t("credits_box_title"),
+                box_pad_x,
+                line_start_y,
+                color=(0, 225, 255),
+                center=False,
+                font=self.card_font
+            )
+
+            # Mod / Developer Info
+            self.render_text(
+                _t("credits_mod_by"),
+                box_pad_x,
+                line_start_y + line_spacing,
+                color=Theme.TEXT_PRIMARY,
+                center=False,
+                font=self.font
+            )
+
+            # Original Project Attribution
+            self.render_text(
+                _t("credits_base_on"),
+                box_pad_x,
+                line_start_y + line_spacing * 2,
+                color=(255, 210, 100),
+                center=False,
+                font=self.control_font
+            )
+
+            # Community note
+            self.render_text(
+                _t("credits_community"),
+                box_pad_x,
+                line_start_y + line_spacing * 3,
+                color=Theme.TEXT_SECONDARY,
+                center=False,
+                font=self.control_font
+            )
+
+            # 5. Render Bottom Control Guides
             controls = {
                 'left': [
                     "list-controls.png",  # Move
