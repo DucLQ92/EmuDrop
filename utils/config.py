@@ -200,7 +200,7 @@ class Config:
         
         # 2. Games View (10 items filling vertical space, width distributed cleanly)
         game_list_start_y = int(height * 0.10)
-        game_list_bottom_y = int(height * 0.09)
+        game_list_bottom_y = int(height * 0.12)
         available_game_h = height - game_list_start_y - game_list_bottom_y
         
         cls.GAME_LIST_START_Y = game_list_start_y

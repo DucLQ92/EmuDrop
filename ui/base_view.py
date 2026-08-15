@@ -229,23 +229,26 @@ class BaseView:
         except Exception as e:
             logger.error(f"Error rendering text: {e}", exc_info=True)
             
-    def _render_page_navigation(self, current_page: int, total_pages: int, search_text_result: int=None) -> None:
+    def _render_page_navigation(self, current_page: int, total_pages: int, search_text_result: str = None) -> None:
         """Render page navigation controls above the bottom controller guide bar with ample padding"""
         page_text = _t("page_info", current=current_page + 1, total=total_pages)
         nav_y = Config.SCREEN_HEIGHT - Config.CONTROL_BOTTOM_MARGIN - int(38 * Config.SCALE_Y)
-        self.render_text(
-            page_text,
-            Config.SCREEN_WIDTH // 2,
-            nav_y,
-            color=Theme.TEXT_SECONDARY,
-            center=True
-        )
+        
         if search_text_result:
+            combined_text = f"{search_text_result}  •  {page_text}"
             self.render_text(
-                search_text_result,
+                combined_text,
                 Config.SCREEN_WIDTH // 2,
-                nav_y - int(28 * Config.SCALE_Y),
-                color=Theme.TEXT_ACCENT,
+                nav_y,
+                color=Theme.TEXT_HIGHLIGHT,
+                center=True
+            )
+        else:
+            self.render_text(
+                page_text,
+                Config.SCREEN_WIDTH // 2,
+                nav_y,
+                color=Theme.TEXT_SECONDARY,
                 center=True
             )
 

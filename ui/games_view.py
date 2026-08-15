@@ -110,7 +110,8 @@ class GamesView(BaseView):
         """
         try:
             # Render the title at the top
-            self.render_title(_t("games"))
+            title = f"{_t('games')} ({_t('search')})" if isSearched else _t("games")
+            self.render_title(title)
 
             if active_downloads_count:
                 self._render_active_download_count(active_downloads_count)    
