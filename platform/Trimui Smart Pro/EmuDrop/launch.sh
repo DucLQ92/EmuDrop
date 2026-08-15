@@ -17,11 +17,11 @@ else
     exit
 fi
 
-./app_ota.sh
-./db_ota.sh
+# CPU Power Management: Use ondemand governor to keep CPU cool and save battery
+if [ -f "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor" ]; then
+    echo ondemand > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null || true
+fi
 
-echo performance >/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
-echo 1608000 >/sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq
 echo 1 > /tmp/stay_awake #keep screen awake
 
 export ROMS_DIR="/mnt/SDCARD/Roms/"
@@ -29,4 +29,4 @@ export IMGS_DIR="/mnt/SDCARD/Imgs/{SYSTEM}/{IMAGE_NAME}.png"
 export EXECUTABLES_DIR="$APP_DIR/assets/executables/"
 
 ./EmuDrop
-rm /tmp/stay_awake
+rm -f /tmp/stay_awake

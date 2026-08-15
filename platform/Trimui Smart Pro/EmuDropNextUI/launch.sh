@@ -59,12 +59,12 @@ if [ -f "$INFOSCREEN" ]; then
     fi
 fi
 
-# Run updates
-echo "Running updates..." >> "$LOG_FILE"
-./app_ota.sh >> "$LOG_FILE" 2>&1
-./db_ota.sh >> "$LOG_FILE" 2>&1
+# CPU Power Management: Use ondemand governor to allow CPU to drop to 408MHz when idle
+if [ -f "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor" ]; then
+    echo ondemand > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null || true
+fi
 
-# Launch app
+# Launch app (OTA updates disabled for custom build)
 echo "Launching EmuDrop binary..." >> "$LOG_FILE"
 ./EmuDrop >> "$LOG_FILE" 2>&1
 EXIT_CODE=$?
