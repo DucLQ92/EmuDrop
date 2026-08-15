@@ -38,6 +38,7 @@ from ui.alert_dialog import AlertDialog
 from ui.sources_view import SourcesView
 from ui.settings_view import SettingsView
 from utils.i18n import _t, i18n
+from utils.profiler import profiler
 from data.database import Database
 
 class SDLError(Exception):
@@ -378,10 +379,25 @@ class GameDownloaderApp:
                     # Render frame
                     self._render()
                     
-                    # Cap frame rate at 30 FPS with responsive event polling
-                    frame_time = sdl2.SDL_GetTicks() - current_time
-                    if frame_time < Config.FRAME_TIME:
-                        sdl2.SDL_Delay(Config.FRAME_TIME - frame_time)
+                    # Determine activity state for diagnostic logging
+                    is_active = (
+                        len(self.downloads) > 0 
+                        or bool(self.held_joy_buttons) 
+                        or self.held_hat_button != sdl2.SDL_HAT_CENTERED 
+                        or self.view_state.showing_confirmation 
+                        or self.alert_manager.is_showing() 
+                        or self.view_state.showing_keyboard 
+                        or (self.view_state.mode == 'games' and getattr(self, 'game_hold_timer', 0) < Config.IMAGE_LOAD_DELAY)
+                    )
+                    
+                    # Frame pacing using kernel sleep to guarantee true CPU idle state
+                    frame_work_time = sdl2.SDL_GetTicks() - current_time
+                    sleep_duration_ms = 0
+                    if frame_work_time < Config.FRAME_TIME:
+                        sleep_duration_ms = Config.FRAME_TIME - frame_work_time
+                        time.sleep(sleep_duration_ms / 1000.0)
+                        
+                    profiler.record_frame(frame_work_time, sleep_duration_ms, is_active=is_active)
                         
                 except Exception as e:
                     logger.error(f"Error in main loop: {str(e)}", exc_info=True)

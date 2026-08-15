@@ -12,6 +12,7 @@ from utils.config import Config
 from utils.theme import Theme
 from utils.i18n import _t, i18n
 from utils.logger import logger
+from utils.profiler import profiler
 
 
 class SettingsView(BaseView):
@@ -57,6 +58,13 @@ class SettingsView(BaseView):
             card_h = max(56, int(66 * Config.SCALE_Y))
             card_spacing = max(8, int(10 * Config.SCALE_Y))
 
+            hw_info = profiler.get_hardware_status()
+            hw_extra = ""
+            if hw_info["temp"] != "N/A":
+                hw_extra = f" • {hw_info['temp']}"
+            if hw_info["freq"] != "N/A":
+                hw_extra += f" ({hw_info['freq']})"
+
             settings_data = [
                 {
                     "title": _t("setting_language"),
@@ -67,7 +75,7 @@ class SettingsView(BaseView):
                 },
                 {
                     "title": _t("setting_device"),
-                    "desc": f"Allwinner A133P / {Config.SCREEN_WIDTH}x{Config.SCREEN_HEIGHT}",
+                    "desc": f"Allwinner A133P / {Config.SCREEN_WIDTH}x{Config.SCREEN_HEIGHT}{hw_extra}",
                     "value": "TrimUI Brick (4:3)" if Config.SCREEN_WIDTH / Config.SCREEN_HEIGHT < 1.5 else "TrimUI Smart Pro (16:9)",
                     "is_interactive": False,
                     "accent_val": False,
