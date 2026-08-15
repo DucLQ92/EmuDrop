@@ -15,7 +15,7 @@
         "CONTROLLER_BUTTON_B": 11,
         "CONTROLLER_BUTTON_X": 1,
         "CONTROLLER_BUTTON_Y": 0,
-        "CONTROLLER_BUTTON_L": 4,  
+        "CONTROLLER_BUTTON_L": 4,
         "CONTROLLER_BUTTON_R": 10,
         "CONTROLLER_BUTTON_SELECT": 10,
         "CONTROLLER_BUTTON_START": 10,
@@ -23,5 +23,6 @@
         "CONTROLLER_BUTTON_DOWN": 10,
         "CONTROLLER_BUTTON_LEFT": 10,
         "CONTROLLER_BUTTON_RIGHT": 10
-    }
+    },
+    "language": "vi"
 }

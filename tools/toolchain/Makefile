@@ -2,7 +2,7 @@
 .PHONY: clean
 	
 TOOLCHAIN_NAME=crossmix-toolchain
-WORKSPACE_DIR := $(shell pwd)/workspace
+WORKSPACE_DIR := $(shell cd ../.. && pwd)
 TOOL=
 DOCKER := $(shell command -v docker 2> /dev/null)
 PODMAN := $(shell command -v podman 2> /dev/null)

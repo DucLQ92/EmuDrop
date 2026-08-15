@@ -7,6 +7,7 @@ import time
 from utils.theme import Theme
 from utils.config import Config
 from utils.logger import logger
+from utils.i18n import _t
 from .base_view import BaseView
 
 class GamesView(BaseView):
@@ -79,9 +80,9 @@ class GamesView(BaseView):
             sdl2.SDL_RenderFillRect(self.renderer, rect)
             
             if is_loading:
-                # Draw "Loading..." text in the center of the placeholder
+                # Draw loading text in the center of the placeholder
                 self.render_text(
-                    "Loading...",
+                    _t("loading"),
                     x + Config.GAME_LIST_IMAGE_SIZE // 2,
                     y + Config.GAME_LIST_IMAGE_SIZE // 2,
                     color=(200, 200, 200),  # Light gray color
@@ -109,21 +110,21 @@ class GamesView(BaseView):
         """
         try:
             # Render the title at the top
-            self.render_title("Games")
+            self.render_title(_t("games"))
 
             if active_downloads_count:
                 self._render_active_download_count(active_downloads_count)    
 
-             # Render control guides
+            # Render control guides (balanced layout, non-overlapping)
             controls = {
                 'left': [
                     "list-controls.png",
                     "select.png",
                     "back.png",
-                    "search.png",
                     "downloads.png",
                 ],
                 'right': [
+                    "search.png",
                     "sources.png",
                     "previous-page.png",
                     "next-page.png"
@@ -140,12 +141,12 @@ class GamesView(BaseView):
                     selected_game_data = None
                 search_text_result = None
                 if isSearched:
-                    search_text_result = f"Search Results: {total_games} found."
+                    search_text_result = _t("found_games", count=total_games)
                 self._render_page_navigation(current_page, total_pages, search_text_result)
             else:
                 # Show "No games found" message
                 self.render_text(
-                    "No games found",
+                    _t("no_games_found"),
                     Config.SCREEN_WIDTH // 2,
                     Config.SCREEN_HEIGHT // 2 - int(30 * Config.SCALE_FACTOR),
                     color=(200, 200, 200),
@@ -158,12 +159,13 @@ class GamesView(BaseView):
             image_start_x = list_start_x + Config.GAME_LIST_WIDTH + Config.GAME_LIST_SPACING_BETWEEN
             
             # Calculate list area height based on actual number of games
-            max_list_height = (Config.GAME_LIST_ITEM_HEIGHT + Config.GAME_LIST_SPACING) * Config.GAMES_PER_PAGE - Config.GAME_LIST_SPACING
             actual_list_height = (Config.GAME_LIST_ITEM_HEIGHT + Config.GAME_LIST_SPACING) * Config.GAMES_PER_PAGE - Config.GAME_LIST_SPACING
+            list_start_y = Config.GAME_LIST_START_Y
             
-            # Calculate vertical positions to center both the list and image
-            list_start_y = Config.GAME_LIST_START_Y + (max_list_height - actual_list_height) // 2
-            image_start_y = Config.GAME_LIST_START_Y + (max_list_height - Config.GAME_LIST_IMAGE_SIZE) // 2
+            # Position info and image on right side
+            header_offset = int(55 * Config.SCALE_Y)
+            image_size = min(Config.GAME_LIST_IMAGE_SIZE, max(120, actual_list_height - header_offset))
+            image_start_y = list_start_y + header_offset
             
             # Render featured game section (large image and details)
             if selected_game_data:
@@ -175,8 +177,8 @@ class GamesView(BaseView):
                 featured_rect = sdl2.SDL_Rect(
                     image_start_x - padding,
                     image_start_y - padding,
-                    Config.GAME_LIST_IMAGE_SIZE + padding * 2,
-                    Config.GAME_LIST_IMAGE_SIZE + padding * 2
+                    image_size + padding * 2,
+                    image_size + padding * 2
                 )
                 
                 # Draw card shadow
@@ -199,20 +201,18 @@ class GamesView(BaseView):
                 sdl2.SDL_RenderDrawRect(self.renderer, featured_rect)
                 
                 # Render game platform and source name above the image
-                name_y = image_start_y - int(120 * Config.SCALE_FACTOR)  # Position above image
                 self.render_text(
-                    f"Platform: {selected_game_data['platform_name']}",
+                    f"{_t('platform')}: {selected_game_data['platform_name']}",
                     image_start_x,
-                    name_y,
+                    list_start_y,
                     color=Theme.TEXT_PRIMARY,
                     center=False
                 )
                 
-                name_y = image_start_y - int(80 * Config.SCALE_FACTOR)  # Position above image
                 self.render_text(
-                    f"Source: {selected_game_data['source_name']}",
+                    f"{_t('source')}: {selected_game_data['source_name']}",
                     image_start_x,
-                    name_y,
+                    list_start_y + int(26 * Config.SCALE_Y),
                     color=Theme.TEXT_PRIMARY,
                     center=False
                 )
@@ -224,8 +224,8 @@ class GamesView(BaseView):
                         image_rect = sdl2.SDL_Rect(
                             image_start_x,
                             image_start_y,
-                            Config.GAME_LIST_IMAGE_SIZE,
-                            Config.GAME_LIST_IMAGE_SIZE
+                            image_size,
+                            image_size
                         )
                         sdl2.SDL_RenderCopy(self.renderer, texture, None, image_rect)
                     else:
@@ -239,9 +239,9 @@ class GamesView(BaseView):
                     if not show_image:
                         # Display hold message underneath the image with scaled position
                         self.render_text(
-                            "Hold to view image",
-                            image_start_x + Config.GAME_LIST_IMAGE_SIZE // 2,
-                            image_start_y + Config.GAME_LIST_IMAGE_SIZE // 2,
+                            _t("hold_to_view"),
+                            image_start_x + image_size // 2,
+                            image_start_y + image_size // 2,
                             color=Theme.TEXT_SECONDARY,
                             center=True
                         )
@@ -281,11 +281,10 @@ class GamesView(BaseView):
                 sdl2.SDL_RenderDrawRect(self.renderer, item_rect)
                 
                 # Render game name with scaled padding
-                name_x = item_x + int(20 * Config.SCALE_FACTOR)
-                name_y = item_y + (Config.GAME_LIST_ITEM_HEIGHT - int(30 * Config.SCALE_FACTOR)) // 2
+                name_x = item_x + int(15 * Config.SCALE_FACTOR)
                 
                 # Get container width with scaled padding
-                container_width = Config.GAME_LIST_WIDTH - int(40 * Config.SCALE_FACTOR)
+                container_width = Config.GAME_LIST_WIDTH - int(30 * Config.SCALE_FACTOR)
                 
                 # Create text surface to get dimensions
                 text_color = Theme.TEXT_PRIMARY if is_selected else Theme.TEXT_SECONDARY
@@ -298,6 +297,8 @@ class GamesView(BaseView):
                     if not texture:
                         continue
                         
+                    name_y = item_y + (Config.GAME_LIST_ITEM_HEIGHT - text_height) // 2
+                    
                     if text_width > container_width:
                         if is_selected:
                             # Handle scrolling for selected items

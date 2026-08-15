@@ -90,9 +90,9 @@ class KeyboardView(BaseView):
             
             if search_text:
                 # Get text dimensions for cursor positioning
-                text_surface = sdl2.sdlttf.TTF_RenderText_Solid(
+                text_surface = sdl2.sdlttf.TTF_RenderUTF8_Solid(
                     self.font,
-                    search_text.encode(),
+                    search_text.encode('utf-8'),
                     sdl2.SDL_Color(230, 230, 230)
                 )
                 text_width = text_surface.contents.w

@@ -7,6 +7,7 @@ import sdl2
 from utils.theme import Theme
 from utils.config import Config
 from utils.logger import logger
+from utils.i18n import _t
 from .base_view import BaseView
 
 class DownloadView(BaseView):
@@ -25,7 +26,7 @@ class DownloadView(BaseView):
             scroll_offset: Number of items to skip from the top when rendering
         """
         try:
-            self.render_title("Downloads")
+            self.render_title(_t("downloads"))
 
             if not active_downloads:
                 self._render_no_downloads_message()
@@ -254,7 +255,7 @@ class DownloadView(BaseView):
         center_y = Config.SCREEN_HEIGHT // 2
         
         self.render_text(
-            "No active downloads",
+            _t("no_downloads"),
             center_x,
             center_y - 20,
             color=Theme.TEXT_SECONDARY,
@@ -285,14 +286,21 @@ class DownloadView(BaseView):
     def _render_controls(self) -> None:
         """Render control guides"""
         controls = {
-            'left': ["back.png", "select.png"],
-            'right': ["pause-resume.png"]
+            'left': [
+                "list-controls.png",
+                "pause-resume.png",
+                "back.png"
+            ],
+            'right': [
+                "previous-page.png",
+                "next-page.png"
+            ]
         }
         self.render_control_guides(controls)
 
     def _get_text_width(self, text: str) -> int:
         """Get the width of text in pixels"""
-        text_surface = sdl2.sdlttf.TTF_RenderText_Blended(
+        text_surface = sdl2.sdlttf.TTF_RenderUTF8_Blended(
             self.font,
             text.encode('utf-8'),
             sdl2.SDL_Color(255, 255, 255)

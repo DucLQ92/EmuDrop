@@ -114,7 +114,7 @@ class ConfirmationDialog(BaseView):
             
             # Create text surface to get dimensions
             text_color = sdl2.SDL_Color(*Theme.DIALOG_TITLE)
-            text_surface = sdl2.sdlttf.TTF_RenderText_Blended(
+            text_surface = sdl2.sdlttf.TTF_RenderUTF8_Blended(
                 self.font,
                 message.encode('utf-8'),
                 text_color
@@ -170,7 +170,7 @@ class ConfirmationDialog(BaseView):
             if additional_info:
                 line_spacing = int(40 * Config.SCALE_FACTOR)
                 for i, (text, color) in enumerate(additional_info):
-                    text_surface = sdl2.sdlttf.TTF_RenderText_Blended(
+                    text_surface = sdl2.sdlttf.TTF_RenderUTF8_Blended(
                         self.font,
                         text.encode('utf-8'),
                         sdl2.SDL_Color(*color)

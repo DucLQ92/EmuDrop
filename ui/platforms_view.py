@@ -7,20 +7,21 @@ import sdl2
 from utils.theme import Theme
 from utils.config import Config
 from utils.logger import logger
+from utils.i18n import _t
 from .base_view import BaseView
 
 class platformsView(BaseView):
     """View class for rendering game platforms"""
     
-    def __init__(self, renderer, font=None):
+    def __init__(self, renderer, font=None, title_font=None, card_font=None):
         """Initialize the platforms view"""
-        super().__init__(renderer, font)
+        super().__init__(renderer, font, title_font, card_font)
     
     def render(self, current_page: int, selected_platform: int, platforms: List[Dict], active_downloads_count: Dict = None) -> None:
         """Render platforms in a modern grid layout with console images"""
         try:
             # Render the title at the top
-            self.render_title("Platforms")
+            self.render_title(_t("platforms"))
 
             # Show active downloads count in the corner
             if active_downloads_count:
@@ -31,10 +32,10 @@ class platformsView(BaseView):
                 'left': [
                     "grid-controls.png",
                     "select.png",
-                    "back.png",
                     "downloads.png"
                 ],
                 'right': [
+                    "settings.png",
                     "previous-page.png",
                     "next-page.png"
                 ]
@@ -63,7 +64,7 @@ class platformsView(BaseView):
             grid_width = (Config.CARD_WIDTH * Config.CARDS_PER_ROW + 
                         Config.GRID_SPACING * (Config.CARDS_PER_ROW - 1))
             start_x = (Config.SCREEN_WIDTH - grid_width) // 2
-            start_y = int(100 * Config.SCALE_FACTOR)  # Scale the top margin
+            start_y = int(72 * Config.SCALE_Y)  # Responsive top margin
             
             # Render platform cards
             for i, platform in enumerate(page_platforms):
@@ -81,14 +82,17 @@ class platformsView(BaseView):
                 image_path = os.path.join(Config.IMAGES_CONSOLES_DIR, platform['image'])
                 self._render_console_image(image_path, x, y, Config.CARD_WIDTH, Config.CARD_IMAGE_HEIGHT)
                 
-                # Render platform name with scaled vertical position
-                text_y_offset = int(30 * Config.SCALE_FACTOR)
+                # Render platform name centered vertically in card footer with card_font
+                title_area_y = y + Config.CARD_IMAGE_HEIGHT
+                title_area_h = Config.CARD_HEIGHT - Config.CARD_IMAGE_HEIGHT
+                text_y = title_area_y + (title_area_h - Config.FONT_LARGE_SIZE) // 2 - int(2 * Config.SCALE_Y)
                 self.render_text(
                     platform['name'],
                     x + Config.CARD_WIDTH // 2,
-                    y + Config.CARD_HEIGHT - text_y_offset,
-                    color=Theme.TEXT_PRIMARY if is_selected else Theme.TEXT_SECONDARY,
-                    center=True
+                    text_y,
+                    color=Theme.TEXT_HIGHLIGHT if is_selected else Theme.TEXT_PRIMARY,
+                    center=True,
+                    font=self.card_font
                 )
             
             # Render page navigation
