@@ -175,4 +175,3 @@ class LoadingScreen(BaseView):
                 height
             )
             sdl2.SDL_RenderCopy(self.renderer, texture, None, dst_rect)
-            sdl2.SDL_DestroyTexture(texture)

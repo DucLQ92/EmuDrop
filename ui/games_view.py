@@ -287,92 +287,77 @@ class GamesView(BaseView):
                 container_width = Config.GAME_LIST_WIDTH - int(30 * Config.SCALE_FACTOR)
                 
                 # Create text surface to get dimensions
+                # Create text texture from cache to get dimensions and render
                 text_color = Theme.TEXT_PRIMARY if is_selected else Theme.TEXT_SECONDARY
-                texture = None
-                ellipsis_texture = None
+                texture, text_width, text_height = self.create_text_texture(game['name'], text_color)
                 
-                try:
-                    texture, text_width, text_height = self.create_text_texture(game['name'], text_color)
+                if not texture:
+                    continue
                     
-                    if not texture:
-                        continue
+                name_y = item_y + (Config.GAME_LIST_ITEM_HEIGHT - text_height) // 2
+                
+                if text_width > container_width:
+                    if is_selected:
+                        # Handle scrolling for selected items
+                        state = self._get_marquee_state(game['id'], text_width, container_width, is_selected)
                         
-                    name_y = item_y + (Config.GAME_LIST_ITEM_HEIGHT - text_height) // 2
-                    
-                    if text_width > container_width:
-                        if is_selected:
-                            # Handle scrolling for selected items
-                            state = self._get_marquee_state(game['id'], text_width, container_width, is_selected)
+                        # Calculate the visible portion
+                        visible_width = min(container_width - int(20 * Config.SCALE_FACTOR), text_width - int(state['offset']))
+                        
+                        # Setup source rectangle (the portion of text to show)
+                        src_rect = sdl2.SDL_Rect(
+                            int(state['offset']),  # Start from offset
+                            0,
+                            visible_width,  # Show only what fits
+                            text_height
+                        )
+                        
+                        # Setup destination rectangle (where to render)
+                        dst_rect = sdl2.SDL_Rect(
+                            name_x,
+                            name_y,
+                            visible_width,  # Match the visible width
+                            text_height
+                        )
+                        
+                        # Render the clipped portion
+                        sdl2.SDL_RenderCopy(self.renderer, texture, src_rect, dst_rect)
+                        
+                        # Add ellipsis if not at end of scroll
+                        if state['offset'] < (text_width - container_width):
+                            ellipsis_texture, ellipsis_width, _ = self.create_text_texture("...", text_color)
+                            if ellipsis_texture:
+                                ellipsis_rect = sdl2.SDL_Rect(
+                                    name_x + visible_width,  # Place after visible text
+                                    name_y,
+                                    ellipsis_width,
+                                    text_height
+                                )
+                                sdl2.SDL_RenderCopy(self.renderer, ellipsis_texture, None, ellipsis_rect)
+                    else:
+                        # For non-selected items, clip text and add ellipsis
+                        ellipsis_texture, ellipsis_width, _ = self.create_text_texture("...", text_color)
+                        if ellipsis_texture:
+                            # Adjust visible width to accommodate ellipsis
+                            visible_width = container_width - ellipsis_width
                             
-                            # Calculate the visible portion
-                            visible_width = min(container_width - int(20 * Config.SCALE_FACTOR), text_width - int(state['offset']))
-                            
-                            # Setup source rectangle (the portion of text to show)
-                            src_rect = sdl2.SDL_Rect(
-                                int(state['offset']),  # Start from offset
-                                0,
-                                visible_width,  # Show only what fits
-                                text_height
-                            )
-                            
-                            # Setup destination rectangle (where to render)
-                            dst_rect = sdl2.SDL_Rect(
-                                name_x,
-                                name_y,
-                                visible_width,  # Match the visible width
-                                text_height
-                            )
-                            
-                            # Render the clipped portion
+                            # Render clipped text
+                            src_rect = sdl2.SDL_Rect(0, 0, visible_width, text_height)
+                            dst_rect = sdl2.SDL_Rect(name_x, name_y, visible_width, text_height)
                             sdl2.SDL_RenderCopy(self.renderer, texture, src_rect, dst_rect)
                             
-                            # Add ellipsis if not at end of scroll
-                            if state['offset'] < (text_width - container_width):
-                                try:
-                                    ellipsis_texture, ellipsis_width, _ = self.create_text_texture("...", text_color)
-                                    if ellipsis_texture:
-                                        ellipsis_rect = sdl2.SDL_Rect(
-                                            name_x + visible_width,  # Place after visible text
-                                            name_y,
-                                            ellipsis_width,
-                                            text_height
-                                        )
-                                        sdl2.SDL_RenderCopy(self.renderer, ellipsis_texture, None, ellipsis_rect)
-                                finally:
-                                    if ellipsis_texture:
-                                        sdl2.SDL_DestroyTexture(ellipsis_texture)
-                        else:
-                            # For non-selected items, clip text and add ellipsis
-                            try:
-                                # Calculate space needed for ellipsis
-                                ellipsis_texture, ellipsis_width, _ = self.create_text_texture("...", text_color)
-                                if ellipsis_texture:
-                                    # Adjust visible width to accommodate ellipsis
-                                    visible_width = container_width - ellipsis_width
-                                    
-                                    # Render clipped text
-                                    src_rect = sdl2.SDL_Rect(0, 0, visible_width, text_height)
-                                    dst_rect = sdl2.SDL_Rect(name_x, name_y, visible_width, text_height)
-                                    sdl2.SDL_RenderCopy(self.renderer, texture, src_rect, dst_rect)
-                                    
-                                    # Render ellipsis
-                                    ellipsis_rect = sdl2.SDL_Rect(
-                                        name_x + visible_width,
-                                        name_y,
-                                        ellipsis_width,
-                                        text_height
-                                    )
-                                    sdl2.SDL_RenderCopy(self.renderer, ellipsis_texture, None, ellipsis_rect)
-                            finally:
-                                if ellipsis_texture:
-                                    sdl2.SDL_DestroyTexture(ellipsis_texture)
-                    else:
-                        # Text fits, render it completely
-                        dst_rect = sdl2.SDL_Rect(name_x, name_y, text_width, text_height)
-                        sdl2.SDL_RenderCopy(self.renderer, texture, None, dst_rect)
-                finally:
-                    if texture:
-                        sdl2.SDL_DestroyTexture(texture)
+                            # Render ellipsis
+                            ellipsis_rect = sdl2.SDL_Rect(
+                                name_x + visible_width,
+                                name_y,
+                                ellipsis_width,
+                                text_height
+                            )
+                            sdl2.SDL_RenderCopy(self.renderer, ellipsis_texture, None, ellipsis_rect)
+                else:
+                    # Text fits, render it completely
+                    dst_rect = sdl2.SDL_Rect(name_x, name_y, text_width, text_height)
+                    sdl2.SDL_RenderCopy(self.renderer, texture, None, dst_rect)
 
         except Exception as e:
             logger.error(f"Error rendering games view: {e}", exc_info=True)

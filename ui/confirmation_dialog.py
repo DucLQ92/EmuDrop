@@ -163,60 +163,44 @@ class ConfirmationDialog(BaseView):
                             text_height
                         )
                         sdl2.SDL_RenderCopy(self.renderer, texture, None, dst_rect)
-                    
-                    sdl2.SDL_DestroyTexture(texture)
             
             # Draw additional information if provided
             if additional_info:
                 line_spacing = int(40 * Config.SCALE_FACTOR)
                 for i, (text, color) in enumerate(additional_info):
-                    text_surface = sdl2.sdlttf.TTF_RenderUTF8_Blended(
-                        self.font,
-                        text.encode('utf-8'),
-                        sdl2.SDL_Color(*color)
-                    )
-                    
-                    if text_surface:
-                        text_width = text_surface.contents.w
-                        text_height = text_surface.contents.h
-                        
-                        texture = sdl2.SDL_CreateTextureFromSurface(self.renderer, text_surface)
-                        sdl2.SDL_FreeSurface(text_surface)
-                        
-                        if texture:
-                            if text_width > max_message_width:
-                                # Get marquee state for additional text
-                                state = self._get_marquee_state(f'additional_{i}', text_width, max_message_width)
-                                
-                                # Calculate the visible portion
-                                visible_width = min(max_message_width, text_width - int(state['offset']))
-                                
-                                src_rect = sdl2.SDL_Rect(
-                                    int(state['offset']),
-                                    0,
-                                    visible_width,
-                                    text_height
-                                )
-                                
-                                dst_rect = sdl2.SDL_Rect(
-                                    dialog_x + Config.DIALOG_PADDING,
-                                    dialog_y + Config.DIALOG_MESSAGE_MARGIN + line_spacing + (i * line_spacing),
-                                    visible_width,
-                                    text_height
-                                )
-                                
-                                sdl2.SDL_RenderCopy(self.renderer, texture, src_rect, dst_rect)
-                            else:
-                                # Text fits, render normally centered
-                                dst_rect = sdl2.SDL_Rect(
-                                    dialog_x + (Config.DIALOG_WIDTH - text_width) // 2,
-                                    dialog_y + Config.DIALOG_MESSAGE_MARGIN + line_spacing + (i * line_spacing),
-                                    text_width,
-                                    text_height
-                                )
-                                sdl2.SDL_RenderCopy(self.renderer, texture, None, dst_rect)
+                    texture, text_width, text_height = self.create_text_texture(text, color)
+                    if texture:
+                        if text_width > max_message_width:
+                            # Get marquee state for additional text
+                            state = self._get_marquee_state(f'additional_{i}', text_width, max_message_width)
                             
-                            sdl2.SDL_DestroyTexture(texture)
+                            # Calculate the visible portion
+                            visible_width = min(max_message_width, text_width - int(state['offset']))
+                            
+                            src_rect = sdl2.SDL_Rect(
+                                int(state['offset']),
+                                0,
+                                visible_width,
+                                text_height
+                            )
+                            
+                            dst_rect = sdl2.SDL_Rect(
+                                dialog_x + Config.DIALOG_PADDING,
+                                dialog_y + Config.DIALOG_MESSAGE_MARGIN + line_spacing + (i * line_spacing),
+                                visible_width,
+                                text_height
+                            )
+                            
+                            sdl2.SDL_RenderCopy(self.renderer, texture, src_rect, dst_rect)
+                        else:
+                            # Text fits, render normally centered
+                            dst_rect = sdl2.SDL_Rect(
+                                dialog_x + (Config.DIALOG_WIDTH - text_width) // 2,
+                                dialog_y + Config.DIALOG_MESSAGE_MARGIN + line_spacing + (i * line_spacing),
+                                text_width,
+                                text_height
+                            )
+                            sdl2.SDL_RenderCopy(self.renderer, texture, None, dst_rect)
             
             # Set button colors
             if button_colors is None:
