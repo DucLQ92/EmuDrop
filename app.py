@@ -361,6 +361,7 @@ class GameDownloaderApp:
             self._simulate_loading()
             
             last_heartbeat = time.time()
+            last_download_ui_update = time.time()
             self.needs_redraw = True
             
             while running:
@@ -381,10 +382,12 @@ class GameDownloaderApp:
                         if self._update_game_image_timer(delta_time):
                             self.needs_redraw = True
                     
-                    # Update downloads
+                    # Update downloads and throttle UI redraw during downloads to 4 FPS (every 250ms)
                     if len(self.downloads) > 0:
                         self._update_downloads()
-                        self.needs_redraw = True
+                        if now - last_download_ui_update >= 0.25:
+                            self.needs_redraw = True
+                            last_download_ui_update = now
                         
                     if self.alert_manager.is_showing():
                         self.needs_redraw = True
@@ -394,10 +397,9 @@ class GameDownloaderApp:
                         self.needs_redraw = True
                         last_heartbeat = now
                     
-                    # Determine activity state for diagnostic logging
-                    is_active = (
-                        len(self.downloads) > 0 
-                        or bool(self.held_joy_buttons) 
+                    # Determine whether user is actively interacting (requires 30 FPS response)
+                    is_user_interacting = (
+                        bool(self.held_joy_buttons) 
                         or self.held_hat_button != sdl2.SDL_HAT_CENTERED 
                         or self.view_state.showing_confirmation 
                         or self.alert_manager.is_showing() 
@@ -405,20 +407,24 @@ class GameDownloaderApp:
                         or (self.view_state.mode == 'games' and not self.is_image_loaded)
                     )
                     
-                    # Render frame ONLY when redraw is needed (saves ~75% CPU load when idle)
+                    # Render frame ONLY when redraw is needed (saves massive CPU in software rendering)
                     if self.needs_redraw:
                         self._render()
                         self.needs_redraw = False
                     
-                    # Adaptive frame pacing: 30 FPS when active, 15 FPS when idle for deeper CPU sleep
-                    target_interval = Config.FRAME_TIME if is_active else 66
+                    # Adaptive frame pacing: 30 FPS when user actively interacting, 15 FPS when idle/downloading
+                    target_interval = Config.FRAME_TIME if is_user_interacting else 66
                     frame_work_time = sdl2.SDL_GetTicks() - current_time
                     sleep_duration_ms = 0
                     if frame_work_time < target_interval:
                         sleep_duration_ms = target_interval - frame_work_time
                         time.sleep(sleep_duration_ms / 1000.0)
                         
-                    profiler.record_frame(frame_work_time, sleep_duration_ms, is_active=is_active)
+                    profiler.record_frame(
+                        frame_work_time, 
+                        sleep_duration_ms, 
+                        is_active=(is_user_interacting or len(self.downloads) > 0)
+                    )
                         
                 except Exception as e:
                     logger.error(f"Error in main loop: {str(e)}", exc_info=True)
