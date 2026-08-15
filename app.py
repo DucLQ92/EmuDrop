@@ -389,7 +389,7 @@ class GameDownloaderApp:
                         or self.view_state.showing_confirmation 
                         or self.alert_manager.is_showing() 
                         or self.view_state.showing_keyboard 
-                        or (self.view_state.mode == 'games' and self.game_image_timer < Config.GAME_IMAGE_HOLD_TIME)
+                        or (self.view_state.mode == 'games' and getattr(self, 'game_hold_timer', 0) < Config.IMAGE_LOAD_DELAY)
                     )
                     
                     target_frame_time = Config.FRAME_TIME if is_active else Config.FRAME_TIME_IDLE
