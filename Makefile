@@ -62,6 +62,7 @@ package-nextui: build-binary
 	@echo "📦 Đang đóng gói cho NextUI (TrimUI Brick & Smart Pro)..."
 	@mkdir -p "$(RELEASE_DIR)/EmuDrop.pak"
 	@cp -rf "platform/Trimui Smart Pro/EmuDropNextUI/." "$(RELEASE_DIR)/EmuDrop.pak/"
+	@cp -rf "assets/." "$(RELEASE_DIR)/EmuDrop.pak/assets/"
 	@cp -f "dist/EmuDrop" "$(RELEASE_DIR)/EmuDrop.pak/EmuDrop"
 	@chmod +x "$(RELEASE_DIR)/EmuDrop.pak/EmuDrop" "$(RELEASE_DIR)/EmuDrop.pak/launch.sh" "$(RELEASE_DIR)/EmuDrop.pak/app_ota.sh" "$(RELEASE_DIR)/EmuDrop.pak/db_ota.sh"
 	@cd "$(RELEASE_DIR)" && zip -r "EmuDrop_NextUI.zip" "EmuDrop.pak" > /dev/null 2>&1 || true
@@ -73,6 +74,7 @@ package-crossmix: build-binary
 	@echo "📦 Đang đóng gói cho CrossMix OS (TrimUI Smart Pro / Brick)..."
 	@mkdir -p "$(RELEASE_DIR)/CrossMix/EmuDrop"
 	@cp -rf "platform/Trimui Smart Pro/EmuDrop/." "$(RELEASE_DIR)/CrossMix/EmuDrop/"
+	@cp -rf "assets/." "$(RELEASE_DIR)/CrossMix/EmuDrop/assets/"
 	@cp -f "dist/EmuDrop" "$(RELEASE_DIR)/CrossMix/EmuDrop/EmuDrop"
 	@chmod +x "$(RELEASE_DIR)/CrossMix/EmuDrop/EmuDrop" "$(RELEASE_DIR)/CrossMix/EmuDrop/launch.sh" "$(RELEASE_DIR)/CrossMix/EmuDrop/app_ota.sh" "$(RELEASE_DIR)/CrossMix/EmuDrop/db_ota.sh"
 	@cd "$(RELEASE_DIR)/CrossMix" && zip -r "../EmuDrop_CrossMix.zip" "EmuDrop" > /dev/null 2>&1 || true
@@ -82,6 +84,7 @@ package-stock: build-binary
 	@echo "📦 Đang đóng gói cho Stock OS (TrimUI Smart Pro / Brick)..."
 	@mkdir -p "$(RELEASE_DIR)/StockOS/EmuDrop"
 	@cp -rf "platform/Trimui Smart Pro/EmuDropStockOS/." "$(RELEASE_DIR)/StockOS/EmuDrop/"
+	@cp -rf "assets/." "$(RELEASE_DIR)/StockOS/EmuDrop/assets/"
 	@cp -f "dist/EmuDrop" "$(RELEASE_DIR)/StockOS/EmuDrop/EmuDrop"
 	@chmod +x "$(RELEASE_DIR)/StockOS/EmuDrop/EmuDrop" "$(RELEASE_DIR)/StockOS/EmuDrop/launch.sh" "$(RELEASE_DIR)/StockOS/EmuDrop/app_ota.sh" "$(RELEASE_DIR)/StockOS/EmuDrop/db_ota.sh"
 	@cd "$(RELEASE_DIR)/StockOS" && zip -r "../EmuDrop_StockOS.zip" "EmuDrop" > /dev/null 2>&1 || true
@@ -91,6 +94,7 @@ package-knulli: build-binary
 	@echo "📦 Đang đóng gói cho Knulli OS (TrimUI / Anbernic RG35XX)..."
 	@mkdir -p "$(RELEASE_DIR)/Knulli/EmuDrop"
 	@cp -rf "platform/Trimui Smart Pro/EmuDropKnulli/." "$(RELEASE_DIR)/Knulli/EmuDrop/"
+	@cp -rf "assets/." "$(RELEASE_DIR)/Knulli/EmuDrop/assets/"
 	@cp -f "dist/EmuDrop" "$(RELEASE_DIR)/Knulli/EmuDrop/EmuDrop"
 	@chmod +x "$(RELEASE_DIR)/Knulli/EmuDrop/EmuDrop" "$(RELEASE_DIR)/Knulli/EmuDrop/EmuDrop.pygame"
 	@cd "$(RELEASE_DIR)/Knulli" && zip -r "../EmuDrop_Knulli.zip" "EmuDrop" > /dev/null 2>&1 || true
