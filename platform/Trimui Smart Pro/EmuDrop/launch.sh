@@ -28,6 +28,23 @@ if [ -d "/sys/devices/system/cpu/cpufreq/ondemand" ]; then
     echo 85 > /sys/devices/system/cpu/cpufreq/ondemand/up_threshold 2>/dev/null || true
 fi
 
+# Network TCP Buffer & Performance Tuning for Fast WiFi Downloads
+if [ -f "/proc/sys/net/core/rmem_max" ]; then
+    echo 4194304 > /proc/sys/net/core/rmem_max 2>/dev/null || true
+fi
+if [ -f "/proc/sys/net/core/wmem_max" ]; then
+    echo 4194304 > /proc/sys/net/core/wmem_max 2>/dev/null || true
+fi
+if [ -f "/proc/sys/net/ipv4/tcp_rmem" ]; then
+    echo "4096 87380 4194304" > /proc/sys/net/ipv4/tcp_rmem 2>/dev/null || true
+fi
+if [ -f "/proc/sys/net/ipv4/tcp_wmem" ]; then
+    echo "4096 65536 4194304" > /proc/sys/net/ipv4/tcp_wmem 2>/dev/null || true
+fi
+if [ -f "/proc/sys/net/ipv4/tcp_window_scaling" ]; then
+    echo 1 > /proc/sys/net/ipv4/tcp_window_scaling 2>/dev/null || true
+fi
+
 echo 1 > /tmp/stay_awake #keep screen awake
 
 export ROMS_DIR="/mnt/SDCARD/Roms/"
