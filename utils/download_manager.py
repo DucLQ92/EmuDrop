@@ -185,7 +185,7 @@ class DownloadManager:
                     start_time = time.time()
                     downloaded = 0
                     
-                    for chunk in response.iter_content(chunk_size=8192):
+                    for chunk in response.iter_content(chunk_size=131072):
                         # Check for cancellation
                         if self.cancel_download.is_set():
                             logger.info("Download cancelled")

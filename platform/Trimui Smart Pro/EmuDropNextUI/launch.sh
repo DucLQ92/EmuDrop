@@ -59,9 +59,15 @@ if [ -f "$INFOSCREEN" ]; then
     fi
 fi
 
-# CPU Power Management: Use ondemand governor to allow CPU to drop to 408MHz when idle
+# CPU Power Management: Use ondemand governor and set 408MHz minimum frequency floor
 if [ -f "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor" ]; then
     echo ondemand > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null || true
+fi
+if [ -f "/sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq" ]; then
+    echo 408000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq 2>/dev/null || true
+fi
+if [ -d "/sys/devices/system/cpu/cpufreq/ondemand" ]; then
+    echo 85 > /sys/devices/system/cpu/cpufreq/ondemand/up_threshold 2>/dev/null || true
 fi
 
 # Launch app (OTA updates disabled for custom build)

@@ -49,7 +49,7 @@ class ScreenScraper:
     def _compute_md5(self, file_path):
         md5 = hashlib.md5()
         with open(file_path, "rb") as f:
-            while chunk := f.read(8192):
+            while chunk := f.read(524288):
                 md5.update(chunk)
         return md5.hexdigest()
     

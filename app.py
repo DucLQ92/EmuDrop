@@ -410,11 +410,12 @@ class GameDownloaderApp:
                         self._render()
                         self.needs_redraw = False
                     
-                    # Frame pacing using kernel sleep to guarantee true CPU idle state
+                    # Adaptive frame pacing: 30 FPS when active, 15 FPS when idle for deeper CPU sleep
+                    target_interval = Config.FRAME_TIME if is_active else 66
                     frame_work_time = sdl2.SDL_GetTicks() - current_time
                     sleep_duration_ms = 0
-                    if frame_work_time < Config.FRAME_TIME:
-                        sleep_duration_ms = Config.FRAME_TIME - frame_work_time
+                    if frame_work_time < target_interval:
+                        sleep_duration_ms = target_interval - frame_work_time
                         time.sleep(sleep_duration_ms / 1000.0)
                         
                     profiler.record_frame(frame_work_time, sleep_duration_ms, is_active=is_active)
