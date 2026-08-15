@@ -244,7 +244,9 @@ class ScreenScraper:
             
             if not media_url:
                 logger.info("Trying to scrape by hashing the file")
-                file_path = os.path.join(os.environ['ROMS_DIR'], Config.SYSTEMS_MAPPING[system], file_name)
+                roms_base = os.environ.get('ROMS_DIR', '/mnt/SDCARD/Roms/')
+                system_folder = Config.SYSTEMS_MAPPING.get(system, system)
+                file_path = os.path.join(roms_base, system_folder, file_name)
                 media_url = self._scrape_using_file_hash(file_path, system)
             
             if not media_url:
@@ -267,7 +269,9 @@ class ScreenScraper:
         
         finally:
             if Config.SYSTEMS_OS == "knulli":
-                xml_path = os.path.join(os.environ['ROMS_DIR'], Config.SYSTEMS_MAPPING[system], 'gamelist.xml')
+                roms_base = os.environ.get('ROMS_DIR', '/mnt/SDCARD/Roms/')
+                system_folder = Config.SYSTEMS_MAPPING.get(system, system)
+                xml_path = os.path.join(roms_base, system_folder, 'gamelist.xml')
                 new_game_data = {
                     "path": f"./{file_name}",
                     "name": file_name,

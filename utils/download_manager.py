@@ -211,7 +211,7 @@ class DownloadManager:
                     nonlocal downloaded
                     try:
                         part_headers = {"Range": f"bytes={start_byte}-{end_byte}"}
-                        with self.session.get(download_url, headers=part_headers, stream=True, timeout=30) as r:
+                        with self.session.get(download_url, headers=part_headers, stream=True, timeout=(15, 60)) as r:
                             r.raise_for_status()
                             with open(dest_file, "r+b") as pf:
                                 pf.seek(start_byte)
@@ -251,28 +251,37 @@ class DownloadManager:
                     logger.info("Download cancelled")
                     return
                     
-                if stream_errors:
-                    raise RuntimeError(f"One or more download streams failed: {stream_errors[0]}")
-            else:
+                if stream_errors and not self.cancel_download.is_set():
+                    logger.warning(f"Segmented download encountered error, falling back to single-stream mode...")
+                    use_segmented = False
+
+            if not use_segmented and not self.cancel_download.is_set():
                 # High-speed single-stream download with 256KB memory buffer
-                with open(dest_file, "wb" if total_size == 0 else "r+b") as file:
-                    for chunk in head_resp.iter_content(chunk_size=262144):
-                        if self.cancel_download.is_set():
-                            logger.info("Download cancelled")
-                            return
-                        if self.pause_download.is_set():
-                            while self.pause_download.is_set() and not self.cancel_download.is_set():
-                                time.sleep(0.1)
+                start_time = time.time()
+                downloaded = 0
+                with self.session.get(download_url, stream=True, timeout=(15, 60)) as stream_resp:
+                    stream_resp.raise_for_status()
+                    if total_size == 0:
+                        total_size = int(stream_resp.headers.get('content-length', 0))
+                        self.status["total_size"] = total_size
+                    with open(dest_file, "wb") as file:
+                        for chunk in stream_resp.iter_content(chunk_size=262144):
                             if self.cancel_download.is_set():
+                                logger.info("Download cancelled")
                                 return
-                        if chunk:
-                            file.write(chunk)
-                            downloaded += len(chunk)
-                            elapsed = time.time() - start_time
-                            self.status["current_size"] = downloaded
-                            self.status["progress"] = (downloaded / total_size * 100) if total_size > 0 else 0
-                            if elapsed > 0:
-                                self.status["download_speed"] = downloaded / elapsed
+                            if self.pause_download.is_set():
+                                while self.pause_download.is_set() and not self.cancel_download.is_set():
+                                    time.sleep(0.1)
+                                if self.cancel_download.is_set():
+                                    return
+                            if chunk:
+                                file.write(chunk)
+                                downloaded += len(chunk)
+                                elapsed = time.time() - start_time
+                                self.status["current_size"] = downloaded
+                                self.status["progress"] = (downloaded / total_size * 100) if total_size > 0 else 0
+                                if elapsed > 0:
+                                    self.status["download_speed"] = downloaded / elapsed
 
             # Process the downloaded file if not cancelled
             if not self.cancel_download.is_set():
