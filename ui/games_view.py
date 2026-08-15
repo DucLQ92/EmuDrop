@@ -222,13 +222,23 @@ class GamesView(BaseView):
                 if show_image and 'image_url' in selected_game_data:
                     texture = self.get_texture(selected_game_data['image_url'])
                     if texture:
-                        image_rect = sdl2.SDL_Rect(
-                            image_start_x,
-                            image_start_y,
-                            image_size,
-                            image_size
-                        )
-                        sdl2.SDL_RenderCopy(self.renderer, texture, None, image_rect)
+                        tex_w, tex_h = self._get_texture_dimensions(texture)
+                        if tex_w > 0 and tex_h > 0:
+                            scale = min(image_size / tex_w, image_size / tex_h)
+                            render_w = int(tex_w * scale)
+                            render_h = int(tex_h * scale)
+                            img_x = image_start_x + (image_size - render_w) // 2
+                            img_y = image_start_y + (image_size - render_h) // 2
+                            image_rect = sdl2.SDL_Rect(int(img_x), int(img_y), int(render_w), int(render_h))
+                            sdl2.SDL_RenderCopy(self.renderer, texture, None, image_rect)
+                        else:
+                            image_rect = sdl2.SDL_Rect(
+                                image_start_x,
+                                image_start_y,
+                                image_size,
+                                image_size
+                            )
+                            sdl2.SDL_RenderCopy(self.renderer, texture, None, image_rect)
                     else:
                         # Show loading indicator while texture is being loaded
                         self._render_game_placeholder(image_start_x, image_start_y, is_loading=True)

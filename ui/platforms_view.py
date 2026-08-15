@@ -101,26 +101,37 @@ class platformsView(BaseView):
         except Exception as e:
             logger.error(f"Error rendering platforms: {e}", exc_info=True)            
     def _render_console_image(self, image_path: str, x: int, y: int, width: int, height: int) -> None:
-        """Render a console image within a card"""
+        """Render a console image within a card while maintaining aspect ratio"""
         try:
             texture = self.get_texture(image_path)
             if texture:
-                # Calculate scaled padding
-                padding = int(20 * Config.SCALE_FACTOR)
+                tex_w, tex_h = self._get_texture_dimensions(texture)
+                if tex_w <= 0 or tex_h <= 0:
+                    return
                 
-                # Calculate image dimensions to maintain aspect ratio
-                img_width = width - padding * 2
-                img_height = height - padding * 2
+                # Calculate maximum available inner area with scaled padding
+                padding_x = int(18 * Config.SCALE_FACTOR)
+                padding_y = int(12 * Config.SCALE_FACTOR)
+                max_w = width - padding_x * 2
+                max_h = height - padding_y * 2
                 
-                # Center the image
-                img_x = x + (width - img_width) // 2
-                img_y = y + (height - img_height) // 2
+                if max_w <= 0 or max_h <= 0:
+                    return
+                
+                # Scale while preserving aspect ratio (contain)
+                scale = min(max_w / tex_w, max_h / tex_h)
+                render_w = int(tex_w * scale)
+                render_h = int(tex_h * scale)
+                
+                # Center the console image perfectly inside the card's image area
+                img_x = x + (width - render_w) // 2
+                img_y = y + (height - render_h) // 2
                 
                 rect = sdl2.SDL_Rect(
                     int(img_x),
                     int(img_y),
-                    int(img_width),
-                    int(img_height)
+                    int(render_w),
+                    int(render_h)
                 )
                 sdl2.SDL_RenderCopy(self.renderer, texture, None, rect)
         except Exception as e:
