@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import Dict, Optional, List, Any, Tuple
 import ctypes
 import os
+import sys
 import shutil
 import math
 import time
@@ -35,6 +36,9 @@ from ui.games_view import GamesView
 from ui.keyboard_view import KeyboardView
 from ui.alert_dialog import AlertDialog
 from ui.sources_view import SourcesView
+from ui.settings_view import SettingsView
+from utils.i18n import _t, i18n
+from utils.profiler import profiler
 from data.database import Database
 
 class SDLError(Exception):
@@ -73,9 +77,13 @@ class GameDownloaderApp:
     - Game downloading and status tracking
     - UI rendering and state management
     """
-    def __init__(self) -> None:
+    def __init__(self, target_width: Optional[int] = None, target_height: Optional[int] = None) -> None:
         """
         Initialize the application.
+        
+        Args:
+            target_width: Optional width in pixels (for desktop simulation/debugging)
+            target_height: Optional height in pixels (for desktop simulation/debugging)
         
         Raises:
             SDLError: If SDL initialization or resource loading fails.
@@ -83,7 +91,38 @@ class GameDownloaderApp:
         """
         # Set the singleton instance
         GameDownloaderApp.instance = self
+        self.target_width = target_width
+        self.target_height = target_height
         
+        # Pre-initialize attributes safely before calling SDL subsystems
+        self.window = None
+        self.renderer = None
+        self.font = None
+        self.title_font = None
+        self.card_font = None
+        self.texture_manager = None
+        self.loading_screen = None
+        self.settings_view = None
+        self.view_state = ViewState()
+        self.nav_state = NavigationState()
+        self.download_manager = None
+        self.downloads: Dict[str, Dict[str, Any]] = {}
+        self.game_hold_timer: int = 0
+        self.is_image_loaded: bool = False
+        self.last_selected_game: int = -1
+        self.search_text: str = ""
+        self.selected_download: Optional[str] = None
+        self.scroll_offset: int = 0
+        self.database = None
+        self.cached_platforms = None
+        self.cached_games = {}
+        self.cached_sources = {}
+        self.held_joy_buttons = {}
+        self.held_hat_button = sdl2.SDL_HAT_CENTERED
+        self.last_hat_time: int = 0
+        self.joystick = None
+        self.needs_redraw = True
+
         try:
             # Initialize SDL subsystems
             self._initialize_sdl()
@@ -104,32 +143,11 @@ class GameDownloaderApp:
             # Initialize views
             self._initialize_views()
             
-            # Initialize states
-            self.view_state = ViewState()
-            self.nav_state = NavigationState()
-            self.download_manager = None
-            self.downloads: Dict[str, Dict[str, Any]] = {}
-            self.game_hold_timer: int = 0
-            self.is_image_loaded: bool = False
-            self.last_selected_game: int = -1
-            self.search_text: str = ""
-            self.selected_download: Optional[str] = None  # Track selected download in download view
-            self.scroll_offset: int = 0  # Track scroll position in download view
-            
             self.database = Database()
-            
-            # Cache for platforms
-            self.cached_platforms = None
-            self.cached_games = {}  # Dictionary to cache games by platform_id and source_id
-            self.cached_sources = {}
             
             # Initialize alert manager
             self.alert_manager = AlertManager.get_instance()
             self.alert_manager.set_app(self)
-            
-            self.held_joy_buttons = {}
-            self.held_hat_button = sdl2.SDL_HAT_CENTERED
-            self.last_hat_time: int = 0
             
             # Initialize joystick if available
             self._initialize_joystick()
@@ -179,38 +197,60 @@ class GameDownloaderApp:
     def _create_window(self) -> sdl2.SDL_Window:
         """Create the application window."""
         with self._sdl_error_context("Window creation"):
-            # Get the display mode of the primary display
-            display_mode = sdl2.SDL_DisplayMode()
-            if sdl2.SDL_GetCurrentDisplayMode(0, ctypes.byref(display_mode)) != 0:
-                raise SDLError(sdl2.SDL_GetError().decode('utf-8'))
+            if self.target_width and self.target_height:
+                win_w, win_h = self.target_width, self.target_height
+            else:
+                display_mode = sdl2.SDL_DisplayMode()
+                if sdl2.SDL_GetCurrentDisplayMode(0, ctypes.byref(display_mode)) != 0:
+                    raise SDLError(sdl2.SDL_GetError().decode('utf-8'))
+                win_w, win_h = display_mode.w, display_mode.h
             
-            # Update the configuration with the new screen size
-            Config.update_screen_size(display_mode.w, display_mode.h)
+            # Update the configuration with the screen size
+            Config.update_screen_size(win_w, win_h)
             
+            # Use fullscreen desktop on embedded Linux / handhelds when not forced target size, resizable on desktop
+            flags = sdl2.SDL_WINDOW_SHOWN | sdl2.SDL_WINDOW_ALLOW_HIGHDPI
+            if sys.platform.startswith('linux') and not self.target_width:
+                flags |= sdl2.SDL_WINDOW_FULLSCREEN_DESKTOP
+            else:
+                flags |= sdl2.SDL_WINDOW_RESIZABLE
+                
             window = sdl2.SDL_CreateWindow(
                 Config.APP_NAME.encode('utf-8'), 
                 sdl2.SDL_WINDOWPOS_CENTERED, 
                 sdl2.SDL_WINDOWPOS_CENTERED, 
-                display_mode.w, 
-                display_mode.h, 
-                sdl2.SDL_WINDOW_SHOWN | sdl2.SDL_WINDOW_ALLOW_HIGHDPI | sdl2.SDL_WINDOW_RESIZABLE
+                win_w, 
+                win_h, 
+                flags
             )
             if not window:
                 raise SDLError(sdl2.SDL_GetError().decode('utf-8'))
+                
+            # Hide cursor on handheld devices
+            if sys.platform.startswith('linux') and not self.target_width:
+                sdl2.SDL_ShowCursor(sdl2.SDL_DISABLE)
+                
+            # Query actual window dimensions
+            w = ctypes.c_int()
+            h = ctypes.c_int()
+            sdl2.SDL_GetWindowSize(window, ctypes.byref(w), ctypes.byref(h))
+            if w.value > 0 and h.value > 0:
+                Config.update_screen_size(w.value, h.value)
             
-        logger.info(f"Window created successfully with dimensions: {display_mode.w}x{display_mode.h}")
+        logger.info(f"Window created successfully with dimensions: {win_w}x{win_h}")
         return window
 
     def _create_renderer(self) -> sdl2.SDL_Renderer:
-        """Create the SDL renderer, attempting software rendering first."""
+        """Create the SDL renderer, prioritizing software rendering with VSync for handheld devices."""
         with self._sdl_error_context("Renderer creation"):
-            # Try software renderer first (better for low-power devices)
+            # Software renderer is proven, stable, and responsive for TrimUI and embedded devices
             renderer_flags = sdl2.SDL_RENDERER_SOFTWARE | sdl2.SDL_RENDERER_PRESENTVSYNC
             renderer = sdl2.SDL_CreateRenderer(self.window, -1, renderer_flags)
             
             if not renderer:
-                # Log warning and try hardware acceleration as fallback
-                logger.warning("Software renderer failed, attempting hardware acceleration")
+                renderer = sdl2.SDL_CreateRenderer(self.window, -1, sdl2.SDL_RENDERER_SOFTWARE)
+                
+            if not renderer:
                 renderer = sdl2.SDL_CreateRenderer(
                     self.window, 
                     -1,
@@ -226,51 +266,67 @@ class GameDownloaderApp:
             
             return renderer
 
-    def _load_font(self) -> sdl2.sdlttf.TTF_Font:
-        """Load the application font."""
+    def _load_font(self, size: int = None, bold: bool = True) -> sdl2.sdlttf.TTF_Font:
+        """Load the application font with specified size and bold style."""
         font_path = Config.get_font_path()
         if not font_path:
             raise RuntimeError("No suitable font found in configuration")
 
+        font_size = size if size else Config.FONT_SIZE
         with self._sdl_error_context("Font loading"):
-            font = sdl2.sdlttf.TTF_OpenFont(font_path.encode('utf-8'), Config.FONT_SIZE)
+            font = sdl2.sdlttf.TTF_OpenFont(font_path.encode('utf-8'), font_size)
             if not font:
                 raise SDLError(sdl2.sdlttf.TTF_GetError().decode('utf-8'))
             
-            logger.info(f"Loaded font: {font_path}")
+            if bold:
+                sdl2.sdlttf.TTF_SetFontStyle(font, sdl2.sdlttf.TTF_STYLE_BOLD)
+                
+            logger.info(f"Loaded font (size {font_size}, bold={bold}): {font_path}")
             return font
 
     def _initialize_views(self) -> None:
         """Initialize or reinitialize all views with current screen dimensions."""
-        # Share the font with all views
-        shared_font = self.font
+        # Close old fonts if any
+        for f in ['font', 'title_font', 'card_font']:
+            if hasattr(self, f) and getattr(self, f):
+                try:
+                    sdl2.sdlttf.TTF_CloseFont(getattr(self, f))
+                except Exception:
+                    pass
+                    
+        self.font = self._load_font(Config.FONT_SIZE, bold=True)
+        self.title_font = self._load_font(Config.FONT_TITLE_SIZE, bold=True)
+        self.card_font = self._load_font(Config.FONT_LARGE_SIZE, bold=True)
         
-        self.platforms_view = platformsView(self.renderer, shared_font)
+        self.platforms_view = platformsView(self.renderer, self.font, self.title_font, self.card_font)
         self.platforms_view.set_texture_manager(self.texture_manager)
         
-        self.games_view = GamesView(self.renderer, shared_font)
+        self.games_view = GamesView(self.renderer, self.font)
         self.games_view.set_texture_manager(self.texture_manager)
         
-        self.download_view = DownloadView(self.renderer, shared_font)
+        self.download_view = DownloadView(self.renderer, self.font)
         self.download_view.set_texture_manager(self.texture_manager)
         
-        self.sources_view = SourcesView(self.renderer, shared_font)
+        self.sources_view = SourcesView(self.renderer, self.font, self.title_font, self.card_font)
         self.sources_view.set_texture_manager(self.texture_manager)
         
-        self.keyboard_view = KeyboardView(self.renderer, shared_font)
+        self.settings_view = SettingsView(self.renderer, self.font, self.title_font)
+        self.settings_view.set_texture_manager(self.texture_manager)
+        
+        self.keyboard_view = KeyboardView(self.renderer, self.font)
         self.keyboard_view.set_texture_manager(self.texture_manager)
         
-        self.confirmation_dialog = ConfirmationDialog(self.renderer, shared_font)
+        self.confirmation_dialog = ConfirmationDialog(self.renderer, self.font)
         self.confirmation_dialog.set_texture_manager(self.texture_manager)
         
-        self.alert_dialog = AlertDialog(self.renderer, shared_font)
+        self.alert_dialog = AlertDialog(self.renderer, self.font)
         self.alert_dialog.set_texture_manager(self.texture_manager)
         
         self.loading_screen = LoadingScreen(
             self.renderer,
             Config.SCREEN_WIDTH,
             Config.SCREEN_HEIGHT,
-            self.font
+            self.title_font
         )
         self.loading_screen.set_texture_manager(self.texture_manager)
         
@@ -304,30 +360,71 @@ class GameDownloaderApp:
             # Show loading screen
             self._simulate_loading()
             
+            last_heartbeat = time.time()
+            last_download_ui_update = time.time()
+            self.needs_redraw = True
+            
             while running:
                 try:
                     # Handle timing
                     current_time = sdl2.SDL_GetTicks()
                     delta_time = current_time - last_time
                     last_time = current_time
+                    now = time.time()
                     
                     # Process events
-                    running = self._process_events()
+                    had_event, running = self._process_events()
+                    if had_event:
+                        self.needs_redraw = True
                     
                     # Update game state
                     if self.view_state.mode == 'games':
-                        self._update_game_image_timer(delta_time)
+                        if self._update_game_image_timer(delta_time):
+                            self.needs_redraw = True
                     
-                    # Update downloads
-                    self._update_downloads()
+                    # Update downloads and throttle UI redraw during downloads to 4 FPS (every 250ms)
+                    if len(self.downloads) > 0:
+                        self._update_downloads()
+                        if now - last_download_ui_update >= 0.25:
+                            self.needs_redraw = True
+                            last_download_ui_update = now
+                        
+                    if self.alert_manager.is_showing():
+                        self.needs_redraw = True
+                        
+                    # Periodic heartbeat (every 2.0s) to refresh status / clock / profiler info
+                    if now - last_heartbeat >= 2.0:
+                        self.needs_redraw = True
+                        last_heartbeat = now
                     
-                    # Render frame
-                    self._render()
+                    # Determine whether user is actively interacting (requires 30 FPS response)
+                    is_user_interacting = (
+                        bool(self.held_joy_buttons) 
+                        or self.held_hat_button != sdl2.SDL_HAT_CENTERED 
+                        or self.view_state.showing_confirmation 
+                        or self.alert_manager.is_showing() 
+                        or self.view_state.showing_keyboard 
+                        or (self.view_state.mode == 'games' and not self.is_image_loaded)
+                    )
                     
-                    # Cap frame rate
-                    frame_time = sdl2.SDL_GetTicks() - current_time
-                    if frame_time < Config.FRAME_TIME:
-                        sdl2.SDL_Delay(Config.FRAME_TIME - frame_time)
+                    # Render frame ONLY when redraw is needed (saves massive CPU in software rendering)
+                    if self.needs_redraw:
+                        self._render()
+                        self.needs_redraw = False
+                    
+                    # Adaptive frame pacing: 30 FPS when user actively interacting, 15 FPS when idle/downloading
+                    target_interval = Config.FRAME_TIME if is_user_interacting else 66
+                    frame_work_time = sdl2.SDL_GetTicks() - current_time
+                    sleep_duration_ms = 0
+                    if frame_work_time < target_interval:
+                        sleep_duration_ms = target_interval - frame_work_time
+                        time.sleep(sleep_duration_ms / 1000.0)
+                        
+                    profiler.record_frame(
+                        frame_work_time, 
+                        sleep_duration_ms, 
+                        is_active=(is_user_interacting or len(self.downloads) > 0)
+                    )
                         
                 except Exception as e:
                     logger.error(f"Error in main loop: {str(e)}", exc_info=True)
@@ -340,25 +437,29 @@ class GameDownloaderApp:
         finally:
             self.cleanup()
 
-    def _process_events(self) -> bool:
+    def _process_events(self) -> Tuple[bool, bool]:
         """Process SDL events.
         
         Returns:
-            bool: False if application should exit, True otherwise.
+            Tuple[bool, bool]: (had_event, running)
+                had_event: True if any input/window event occurred.
+                running: False if application should exit, True otherwise.
         """
         event = sdl2.SDL_Event()
+        had_event = False
         while sdl2.SDL_PollEvent(ctypes.byref(event)) != 0:
+            had_event = True
             if event.type == sdl2.SDL_QUIT:
-                return False
+                return True, False
             elif event.type == sdl2.SDL_WINDOWEVENT:
                 self._handle_window_event(event)
             elif event.type == sdl2.SDL_KEYDOWN:
                 if not self._handle_input_event(event.key.keysym.sym):
-                    return False
+                    return True, False
             elif event.type == sdl2.SDL_JOYBUTTONDOWN:
                 button = event.jbutton.button
                 if not self._handle_controller_button(button):
-                    return False
+                    return True, False
                 self.held_joy_buttons[button] = time.time()
             elif event.type == sdl2.SDL_JOYBUTTONUP:
                 button = event.jbutton.button
@@ -366,24 +467,26 @@ class GameDownloaderApp:
             elif event.type == sdl2.SDL_JOYHATMOTION:
                 button = event.jhat.value
                 if not self._handle_d_pad_controller_button(button):
-                    return False
+                    return True, False
                 self.held_hat_button = button
                 self.last_hat_time = time.time()
         
         now = time.time()
         for button, last_time in self.held_joy_buttons.items():
             if now - last_time >= Config.CONTROLLER_BUTTON_REPEAT_RATE / 1000.0:
+                had_event = True
                 if not self._handle_controller_button(button):
-                    return False
+                    return True, False
                 self.held_joy_buttons[button] = now
                 
         if self.held_hat_button != sdl2.SDL_HAT_CENTERED:
-                if now - self.last_hat_time >= Config.CONTROLLER_BUTTON_REPEAT_RATE / 1000.0:
-                    if not self._handle_d_pad_controller_button(self.held_hat_button):
-                        return False
-                    self.last_hat_time = now
+            if now - self.last_hat_time >= Config.CONTROLLER_BUTTON_REPEAT_RATE / 1000.0:
+                had_event = True
+                if not self._handle_d_pad_controller_button(self.held_hat_button):
+                    return True, False
+                self.last_hat_time = now
         
-        return True
+        return had_event, True
     
     def _handle_window_event(self, event) -> None:
         """Handle window events like resize."""
@@ -393,6 +496,7 @@ class GameDownloaderApp:
             Config.update_screen_size(width, height)
             # Reinitialize views with new dimensions
             self._initialize_views()
+            self.needs_redraw = True
             logger.info(f"Window resized to: {width}x{height}")
 
     def _update_downloads(self) -> None:
@@ -450,11 +554,11 @@ class GameDownloaderApp:
         """Show a loading screen while initializing."""
         try:
             loading_stages = [
-                ("Initializing SDL", 0.1),
-                ("Loading platforms", 0.3),
-                ("Loading Game Data", 0.5),
-                ("Preparing Textures", 0.8),
-                ("Ready", 1.0)
+                (_t("init_sdl"), 0.1),
+                (_t("loading_platforms"), 0.3),
+                (_t("loading_game_data"), 0.5),
+                (_t("preparing_textures"), 0.8),
+                (_t("ready"), 1.0)
             ]
             
             for stage, progress in loading_stages:
@@ -464,22 +568,29 @@ class GameDownloaderApp:
         except Exception as e:
             logger.error(f"Error showing loading screen: {str(e)}", exc_info=True)
 
-    def _update_game_image_timer(self, delta_time: int) -> None:
+    def _update_game_image_timer(self, delta_time: int) -> bool:
         """Update the game image loading timer.
         
         Args:
             delta_time: Time elapsed since last frame in milliseconds.
+            
+        Returns:
+            bool: True if image loading state changed and requires redraw.
         """
         if self.last_selected_game != self.nav_state.selected_game:
             # Reset timer when selection changes
             self.game_hold_timer = 0
             self.is_image_loaded = False
             self.last_selected_game = self.nav_state.selected_game
+            return True
         else:
             # Increment timer while on the same game
-            self.game_hold_timer += delta_time
-            if self.game_hold_timer >= Config.IMAGE_LOAD_DELAY and not self.is_image_loaded:
-                self.is_image_loaded = True
+            if not self.is_image_loaded:
+                self.game_hold_timer += delta_time
+                if self.game_hold_timer >= Config.IMAGE_LOAD_DELAY:
+                    self.is_image_loaded = True
+                    return True
+        return False
 
     def _handle_controller_button(self, button):
         # Map controller buttons to keyboard events
@@ -537,8 +648,24 @@ class GameDownloaderApp:
             return self._handle_confirmation_input(key)
         elif self.view_state.showing_keyboard and self.view_state.mode == 'games':
             return self._handle_onscreen_keyboard_input(key)
+        elif self.view_state.mode == 'settings':
+            return self._handle_settings_input(key)
         else:
             return self._handle_normal_input(key)
+
+    def _handle_settings_input(self, key: int) -> bool:
+        """Handle input when in settings view."""
+        if key == sdl2.SDLK_UP:
+            self.settings_view.handle_navigation(-1)
+        elif key == sdl2.SDLK_DOWN:
+            self.settings_view.handle_navigation(1)
+        elif key == sdl2.SDLK_LEFT:
+            self.settings_view.handle_action(-1)
+        elif key in [sdl2.SDLK_RIGHT, sdl2.SDLK_RETURN]:
+            self.settings_view.handle_action(1)
+        elif key == sdl2.SDLK_BACKSPACE:
+            self._switch_view('platforms')
+        return True
 
     def _handle_confirmation_input(self, key):
         """Handle input when confirmation dialog is showing"""
@@ -639,9 +766,13 @@ class GameDownloaderApp:
             self._switch_view('download_status')
             return True
             
-        if key == sdl2.SDLK_s and self.view_state.mode == 'games':
-            self._switch_view('sources')
-            return True
+        if key == sdl2.SDLK_s:
+            if self.view_state.mode == 'games':
+                self._switch_view('sources')
+                return True
+            elif self.view_state.mode == 'platforms':
+                self._switch_view('settings')
+                return True
             
         # Handle keyboard toggle
         if key == sdl2.SDLK_SPACE and self.view_state.mode == 'games' and not self.view_state.showing_keyboard:
@@ -835,7 +966,7 @@ class GameDownloaderApp:
             # Start loading animation in a separate thread
             def animate_loading():
                 while not hasattr(self, '_loading_complete'):
-                    self.loading_screen.render(0.5, "Retreiving Games List...")
+                    self.loading_screen.render(0.5, _t("retrieving_games"))
                     sdl2.SDL_RenderPresent(self.renderer)
                     sdl2.SDL_Delay(Config.LOADING_ANIMATION_SPEED)
             
@@ -864,6 +995,8 @@ class GameDownloaderApp:
             self.nav_state.selected_source = 0
             self.nav_state.source_page = 0
             self._reset_game_selection()
+            
+        self.needs_redraw = True
 
     def _reset_game_selection(self) -> None:
         """Reset all game selection state to initial values."""
@@ -918,8 +1051,9 @@ class GameDownloaderApp:
 
         view_transitions = {
             'sources': 'games',
-            'download_status': self.view_state.previous_mode,
+            'download_status': self.view_state.previous_mode if self.view_state.previous_mode != 'download_status' else 'platforms',
             'games': 'platforms',
+            'settings': 'platforms',
             'platforms': None  # Exit application
         }
 
@@ -1063,12 +1197,17 @@ class GameDownloaderApp:
             'platforms': self._render_platforms_view,
             'games': self._render_games_view,
             'download_status': self._render_download_view,
-            'sources': self._render_sources_view
+            'sources': self._render_sources_view,
+            'settings': self._render_settings_view,
         }
         
         render_method = render_methods.get(self.view_state.mode)
         if render_method:
             render_method()
+
+    def _render_settings_view(self) -> None:
+        """Render the settings view."""
+        self.settings_view.render(len(self.downloads))
 
     def _render_platforms_view(self) -> None:
         """Render the platforms view."""
@@ -1169,7 +1308,7 @@ class GameDownloaderApp:
         self.confirmation_dialog.render(
             message=message,
             confirmation_selected=self.view_state.confirmation_selected,
-            button_texts=("Yes", "No"),
+            button_texts=(_t("yes"), _t("no")),
             additional_info=additional_info
         )
 
@@ -1180,26 +1319,28 @@ class GameDownloaderApp:
             Tuple containing message string and list of additional info tuples
         """
         if self.view_state.confirmation_type == 'exit':
-            return "Do you want to exit?", []
+            return _t("confirm_exit"), []
         
         if self.view_state.confirmation_type == 'cancel':
-            return "Do you want to cancel downloading?", [(self.game_to_download.get('name', ''), Theme.TEXT_SECONDARY),]
+            game_name = (self.game_to_download.get('name', '') if self.game_to_download else self.selected_download) or ""
+            return _t("confirm_cancel", name=game_name), [(game_name, Theme.TEXT_SECONDARY),]
             
         if self.view_state.confirmation_type == 'download' and self.game_to_download:
+            game_name = self.game_to_download.get('name', '')
             game_size = self.game_to_download.get('size', 0)
             total_space, free_space = DownloadManager.get_disk_space()
             
             # Format the information
-            size_text = f"Game Size: 'Geting Game Size..."
+            size_text = f"{_t('game_size')}: {_t('calculating')}"
             game_size_color = Theme.INFO
             if game_size == -1:
-                size_text = f"Game Size: Unknown"
+                size_text = f"{_t('game_size')}: {_t('unknown')}"
                 game_size_color = Theme.WARNING
             elif game_size > 0:
-                size_text = f"Game Size: {DownloadManager.format_size(game_size)}"
+                size_text = f"{_t('game_size')}: {DownloadManager.format_size(game_size)}"
                 game_size_color = Theme.TEXT_SECONDARY
             
-            space_text = f"Free Space: {DownloadManager.format_size(free_space)} / {DownloadManager.format_size(total_space)}"
+            space_text = f"{_t('free_space')}: {DownloadManager.format_size(free_space)} / {DownloadManager.format_size(total_space)}"
             
             # Determine text color based on available space
             space_color = Theme.TEXT_SECONDARY
@@ -1209,9 +1350,9 @@ class GameDownloaderApp:
                 space_color = Theme.WARNING
                 
             return (
-                "Do you want to download?",
+                _t("confirm_download", name=game_name),
                 [
-                    (self.game_to_download.get('name', ''), Theme.TEXT_SECONDARY),
+                    (game_name, Theme.TEXT_SECONDARY),
                     (size_text, game_size_color),
                     (space_text, space_color)
                 ]
@@ -1242,7 +1383,7 @@ class GameDownloaderApp:
         
         # Calculate space width once
         if words and len(words) > 1:
-            space_text = sdl2.sdlttf.TTF_RenderText_Blended(
+            space_text = sdl2.sdlttf.TTF_RenderUTF8_Blended(
                 self.font,
                 " ".encode('utf-8'),
                 sdl2.SDL_Color(255, 255, 255)
@@ -1252,7 +1393,7 @@ class GameDownloaderApp:
         
         for word in words:
             # Measure word width
-            word_surface = sdl2.sdlttf.TTF_RenderText_Blended(
+            word_surface = sdl2.sdlttf.TTF_RenderUTF8_Blended(
                 self.font,
                 word.encode('utf-8'),
                 sdl2.SDL_Color(255, 255, 255)
@@ -1299,8 +1440,18 @@ class GameDownloaderApp:
                 shutil.rmtree(Config.IMAGES_CACHE_DIR)
                 logger.info("Cached imaged cleaned")
             
-            if hasattr(self, 'font'):
-                sdl2.sdlttf.TTF_CloseFont(self.font)
+            # Clean up static view caches
+            try:
+                BaseView.clear_cache()
+            except Exception:
+                pass
+
+            for f in ['font', 'title_font', 'card_font']:
+                if hasattr(self, f) and getattr(self, f):
+                    try:
+                        sdl2.sdlttf.TTF_CloseFont(getattr(self, f))
+                    except Exception:
+                        pass
                 
             if hasattr(self, 'joystick') and self.joystick:
                 sdl2.SDL_JoystickClose(self.joystick)
@@ -1311,7 +1462,7 @@ class GameDownloaderApp:
             if hasattr(self, 'window'):
                 sdl2.SDL_DestroyWindow(self.window)
 
-            if hasattr(self, 'database'):
+            if hasattr(self, 'database') and self.database:
                 self.database.close() 
                 
             # Quit SDL subsystems
@@ -1386,8 +1537,8 @@ class GameDownloaderApp:
         # Check if game is already being downloaded
         if self.game_to_download['name'] in self.downloads:
             self.alert_manager.show_alert(
-                "Download in Progress",
-                [("This game is already being downloaded.", Theme.TEXT_SECONDARY)]
+                _t("download_in_progress"),
+                [(_t("already_downloading"), Theme.TEXT_SECONDARY)]
             )
             return
         
@@ -1410,11 +1561,11 @@ class GameDownloaderApp:
                 if self.game_to_download['size'] > free_space:
                     self.view_state.showing_confirmation = False
                     self.alert_manager.show_alert(
-                        "Insufficient Disk Space",
+                        _t("insufficient_space"),
                         [
-                            (f"Game Size: {DownloadManager.format_size(self.game_to_download['size'])}", Theme.TEXT_SECONDARY),
-                            (f"Free Space: {DownloadManager.format_size(free_space)}", Theme.ERROR),
-                            ("Please free up some disk space and try again.", Theme.TEXT_SECONDARY)
+                            (f"{_t('game_size')}: {DownloadManager.format_size(self.game_to_download['size'])}", Theme.TEXT_SECONDARY),
+                            (f"{_t('free_space')}: {DownloadManager.format_size(free_space)}", Theme.ERROR),
+                            (_t("free_space_hint"), Theme.TEXT_SECONDARY)
                         ]
                     )
             else:

@@ -6,6 +6,7 @@ import sdl2
 from utils.theme import Theme
 from utils.config import Config
 from utils.logger import logger
+from utils.i18n import _t
 from .base_view import BaseView
 
 class KeyboardView(BaseView):
@@ -90,9 +91,9 @@ class KeyboardView(BaseView):
             
             if search_text:
                 # Get text dimensions for cursor positioning
-                text_surface = sdl2.sdlttf.TTF_RenderText_Solid(
+                text_surface = sdl2.sdlttf.TTF_RenderUTF8_Solid(
                     self.font,
-                    search_text.encode(),
+                    search_text.encode('utf-8'),
                     sdl2.SDL_Color(230, 230, 230)
                 )
                 text_width = text_surface.contents.w
@@ -125,7 +126,7 @@ class KeyboardView(BaseView):
                     )
             else:
                 self.render_text(
-                    "Type to search games...",
+                    _t("type_to_search"),
                     text_x,
                     text_y,
                     color=(120, 120, 120),

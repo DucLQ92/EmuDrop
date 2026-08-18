@@ -9,7 +9,9 @@ class GamesExtractorConverter:
     def __init__(self, status, game_prop, download_path) -> None:
         self.platform_id = game_prop.platform_id
         self.download_path = download_path
-        self.rom_path = os.path.join(os.environ['ROMS_DIR'], Config.SYSTEMS_MAPPING[game_prop.platform_id])
+        roms_base = os.environ.get('ROMS_DIR', '/mnt/SDCARD/Roms/')
+        system_folder = Config.SYSTEMS_MAPPING.get(game_prop.platform_id, game_prop.platform_id)
+        self.rom_path = os.path.join(roms_base, system_folder)
         self.isExtractable = game_prop.isExtractable
         self.canBeRenamed = game_prop.canBeRenamed
         self.game_name = game_prop.name
@@ -42,9 +44,10 @@ class GamesExtractorConverter:
                 cmd[0] = cmd[0].replace('./', '')
                 shell = True
                 
+            exec_dir = os.environ.get('EXECUTABLES_DIR', os.path.join(Config.BASE_DIR, 'assets', 'executables'))
             process = subprocess.Popen(
                 cmd,
-                cwd=os.environ['EXECUTABLES_DIR'],
+                cwd=exec_dir if os.path.exists(exec_dir) else None,
                 start_new_session=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -258,6 +261,18 @@ class GamesExtractorConverter:
             
         self.status['current_operation'] = "Extracting archive"
         logger.info(f"Extracting {file}...")
+        
+        # Fast path: Native Python zipfile extraction for .zip files (fast & zero subprocess overhead)
+        if file.lower().endswith('.zip'):
+            try:
+                import zipfile
+                with zipfile.ZipFile(file, 'r') as zip_ref:
+                    zip_ref.extractall(extract_to)
+                os.remove(file)
+                logger.info(f"File {file} has been extracted successfully with zipfile")
+                return
+            except Exception as ze:
+                logger.warning(f"Native zipfile extraction failed, falling back to 7z: {ze}")
         
         success, result = self._run_command(
             ["./7z", "x", file, f'-o{str(extract_to)}'],

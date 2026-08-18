@@ -6,6 +6,7 @@ from typing import Optional, List, Tuple
 from utils.theme import Theme
 from utils.config import Config
 from utils.logger import logger
+from utils.i18n import _t
 from .base_view import BaseView
 
 class AlertDialog(BaseView):
@@ -94,7 +95,7 @@ class AlertDialog(BaseView):
             
             # Draw button text
             self.render_text(
-                "OK",
+                _t("ok"),
                 button_x + button_width // 2,
                 button_y,
                 color=Theme.BUTTON_TEXT,

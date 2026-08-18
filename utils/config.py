@@ -20,8 +20,10 @@ class Config:
     SCALE_Y = SCREEN_HEIGHT / BASE_SCREEN_HEIGHT
     SCALE_FACTOR = min(SCALE_X, SCALE_Y)  # Use minimum to maintain aspect ratio
     
-    FPS_LIMIT_LOW_POWER = 30  # Lower FPS limit for devices like Trimui Smart Pro
+    FPS_LIMIT_LOW_POWER = 30  # Active FPS limit for handhelds
     FRAME_TIME = int(1000 / FPS_LIMIT_LOW_POWER)  # Frame time in milliseconds (33.33ms for 30 FPS)
+    FPS_LIMIT_IDLE = 15  # Idle FPS limit to keep CPU cool and save battery
+    FRAME_TIME_IDLE = int(1000 / FPS_LIMIT_IDLE)  # Frame time in milliseconds (66.67ms for 15 FPS)
 
     # Directory paths
     BASE_DIR = os.path.abspath(os.path.dirname(sys.argv[0]))
@@ -56,8 +58,12 @@ class Config:
         SCRAPER_API_SSPASS = scrapper['SCRAPER_API_SSPASS']
     
     # Font settings
-    BASE_FONT_SIZE = 24
-    FONT_SIZE = int(BASE_FONT_SIZE * SCALE_FACTOR)
+    BASE_FONT_SIZE = 22
+    BASE_FONT_TITLE_SIZE = 34
+    BASE_FONT_LARGE_SIZE = 25
+    FONT_SIZE = 22
+    FONT_TITLE_SIZE = 34
+    FONT_LARGE_SIZE = 25
     FONT_NAME = "arial.ttf"
 
     # Logging settings
@@ -67,66 +73,40 @@ class Config:
     GAMES_PER_PAGE = 10
     CARDS_PER_ROW = 3
     CARDS_PER_PAGE = 9
+    VISIBLE_DOWNLOADS = 5
+    MAX_CONCURRENT_DOWNLOADS = 4
     
-    # Card dimensions (scaled)
-    BASE_CARD_WIDTH = 250
-    BASE_CARD_HEIGHT = 180
-    BASE_CARD_IMAGE_HEIGHT = 120
-    BASE_GRID_SPACING = 10
-    
-    CARD_WIDTH = int(BASE_CARD_WIDTH * SCALE_FACTOR)
-    CARD_HEIGHT = int(BASE_CARD_HEIGHT * SCALE_FACTOR)
-    CARD_IMAGE_HEIGHT = int(BASE_CARD_IMAGE_HEIGHT * SCALE_FACTOR)
-    GRID_SPACING = int(BASE_GRID_SPACING * SCALE_FACTOR)
+    # Grid and card initial settings (will be dynamically calculated by update_screen_size)
+    GRID_SPACING = 10
+    CARD_WIDTH = 250
+    CARD_HEIGHT = 180
+    CARD_IMAGE_HEIGHT = 120
 
-    # Game list settings (scaled)
-    BASE_GAME_LIST_ITEM_HEIGHT = 40
-    BASE_GAME_LIST_SPACING = 12
-    BASE_GAME_LIST_WIDTH = 450
-    BASE_GAME_LIST_START_Y = 120
-    BASE_GAME_LIST_IMAGE_SIZE = 400
-    BASE_GAME_LIST_CARD_PADDING = 20
-    BASE_GAME_LIST_SPACING_BETWEEN = 120
-    
-    GAME_LIST_ITEM_HEIGHT = int(BASE_GAME_LIST_ITEM_HEIGHT * SCALE_FACTOR)
-    GAME_LIST_SPACING = int(BASE_GAME_LIST_SPACING * SCALE_FACTOR)
-    GAME_LIST_WIDTH = int(BASE_GAME_LIST_WIDTH * SCALE_FACTOR)
-    GAME_LIST_START_Y = int(BASE_GAME_LIST_START_Y * SCALE_FACTOR)
-    GAME_LIST_IMAGE_SIZE = int(BASE_GAME_LIST_IMAGE_SIZE * SCALE_FACTOR)
-    GAME_LIST_CARD_PADDING = int(BASE_GAME_LIST_CARD_PADDING * SCALE_FACTOR)
-    GAME_LIST_SPACING_BETWEEN = int(BASE_GAME_LIST_SPACING_BETWEEN * SCALE_FACTOR)
+    # Game list initial settings
+    GAME_LIST_ITEM_HEIGHT = 40
+    GAME_LIST_SPACING = 12
+    GAME_LIST_WIDTH = 450
+    GAME_LIST_START_Y = 120
+    GAME_LIST_IMAGE_SIZE = 400
+    GAME_LIST_CARD_PADDING = 20
+    GAME_LIST_SPACING_BETWEEN = 120
 
-    # Control guide settings (scaled)
-    BASE_CONTROL_SIZE = 75
-    BASE_CONTROL_SPACING = 80
-    BASE_CONTROL_MARGIN = 80
-    BASE_CONTROL_BOTTOM_MARGIN = 60
-    
-    CONTROL_SIZE = int(BASE_CONTROL_SIZE * SCALE_FACTOR)
-    CONTROL_SPACING = int(BASE_CONTROL_SPACING * SCALE_FACTOR)
-    CONTROL_MARGIN = int(BASE_CONTROL_MARGIN * SCALE_FACTOR)
-    CONTROL_BOTTOM_MARGIN = int(BASE_CONTROL_BOTTOM_MARGIN * SCALE_FACTOR)
+    # Control guide initial settings
+    CONTROL_HEIGHT = 32
+    CONTROL_MARGIN = 25
+    CONTROL_BOTTOM_MARGIN = 42
+    CONTROL_ITEM_SPACING = 15
 
-    # Dialog settings (scaled)
-    BASE_DIALOG_WIDTH = 600
-    BASE_DIALOG_HEIGHT = 300
-    BASE_DIALOG_PADDING = 40
-    BASE_DIALOG_LINE_HEIGHT = 30
-    BASE_DIALOG_TITLE_MARGIN = 40
-    BASE_DIALOG_MESSAGE_MARGIN = 50
-    BASE_DIALOG_BUTTON_Y = 220
-    BASE_DIALOG_BUTTON_X = 250
-    BASE_DIALOG_BUTTON_WIDTH = 100
-    
-    DIALOG_WIDTH = int(BASE_DIALOG_WIDTH * SCALE_FACTOR)
-    DIALOG_HEIGHT = int(BASE_DIALOG_HEIGHT * SCALE_FACTOR)
-    DIALOG_PADDING = int(BASE_DIALOG_PADDING * SCALE_FACTOR)
-    DIALOG_LINE_HEIGHT = int(BASE_DIALOG_LINE_HEIGHT * SCALE_FACTOR)
-    DIALOG_TITLE_MARGIN = int(BASE_DIALOG_TITLE_MARGIN * SCALE_FACTOR)
-    DIALOG_MESSAGE_MARGIN = int(BASE_DIALOG_MESSAGE_MARGIN * SCALE_FACTOR)
-    DIALOG_BUTTON_Y = int(BASE_DIALOG_BUTTON_Y * SCALE_FACTOR)
-    DIALOG_BUTTON_X = int(BASE_DIALOG_BUTTON_X * SCALE_FACTOR)
-    DIALOG_BUTTON_WIDTH = int(BASE_DIALOG_BUTTON_WIDTH * SCALE_FACTOR)
+    # Dialog initial settings
+    DIALOG_WIDTH = 600
+    DIALOG_HEIGHT = 300
+    DIALOG_PADDING = 30
+    DIALOG_LINE_HEIGHT = 26
+    DIALOG_TITLE_MARGIN = 35
+    DIALOG_MESSAGE_MARGIN = 45
+    DIALOG_BUTTON_Y = 220
+    DIALOG_BUTTON_X = 250
+    DIALOG_BUTTON_WIDTH = 100
 
     # Image cache settings
     IMAGE_CACHE_MAX_SIZE_MB = 500
@@ -160,65 +140,29 @@ class Config:
     LOADING_ANIMATION_SPEED = 100  # milliseconds per frame
     IMAGE_LOAD_DELAY = 500  # milliseconds to wait before loading game images
 
-    # Download view settings (scaled)
-    BASE_DOWNLOAD_VIEW_START_Y = 70
-    BASE_DOWNLOAD_VIEW_ITEM_HEIGHT = 110
-    BASE_DOWNLOAD_VIEW_SPACING = 15
-    BASE_DOWNLOAD_VIEW_PROGRESS_BAR_HEIGHT = 16
-    BASE_DOWNLOAD_VIEW_SIDE_PADDING = 30
-    BASE_DOWNLOAD_VIEW_INNER_PADDING = 20
-    BASE_DOWNLOAD_VIEW_TEXT_PADDING = 40
-    BASE_DOWNLOAD_VIEW_TEXT_START_X = 40
-    BASE_DOWNLOAD_VIEW_TEXT_Y_OFFSET = 45
-    BASE_DOWNLOAD_VIEW_SPEED_X_OFFSET = 180
-    BASE_DOWNLOAD_VIEW_SIZE_X_OFFSET = 450
-    BASE_DOWNLOAD_VIEW_ETA_X_OFFSET = 700
-    BASE_DOWNLOAD_VIEW_TEXT_SPACING = 30  # Base spacing between text elements
-    BASE_DOWNLOAD_VIEW_MIN_TEXT_SPACING = 20  # Minimum spacing between text elements
-    BASE_DOWNLOAD_VIEW_MAX_TEXT_SPACING = 50  # Maximum spacing between text elements
-    
-    DOWNLOAD_VIEW_START_Y = int(BASE_DOWNLOAD_VIEW_START_Y * SCALE_FACTOR)
-    DOWNLOAD_VIEW_ITEM_HEIGHT = int(BASE_DOWNLOAD_VIEW_ITEM_HEIGHT * SCALE_FACTOR)
-    DOWNLOAD_VIEW_SPACING = int(BASE_DOWNLOAD_VIEW_SPACING * SCALE_FACTOR)
-    DOWNLOAD_VIEW_PROGRESS_BAR_HEIGHT = int(BASE_DOWNLOAD_VIEW_PROGRESS_BAR_HEIGHT * SCALE_FACTOR)
-    DOWNLOAD_VIEW_SIDE_PADDING = int(BASE_DOWNLOAD_VIEW_SIDE_PADDING * SCALE_FACTOR)
-    DOWNLOAD_VIEW_INNER_PADDING = int(BASE_DOWNLOAD_VIEW_INNER_PADDING * SCALE_FACTOR)
-    DOWNLOAD_VIEW_TEXT_PADDING = int(BASE_DOWNLOAD_VIEW_TEXT_PADDING * SCALE_FACTOR)
-    DOWNLOAD_VIEW_TEXT_START_X = int(BASE_DOWNLOAD_VIEW_TEXT_START_X * SCALE_FACTOR)
-    DOWNLOAD_VIEW_TEXT_Y_OFFSET = int(BASE_DOWNLOAD_VIEW_TEXT_Y_OFFSET * SCALE_FACTOR)
-    DOWNLOAD_VIEW_SPEED_X_OFFSET = int(BASE_DOWNLOAD_VIEW_SPEED_X_OFFSET * SCALE_FACTOR)
-    DOWNLOAD_VIEW_SIZE_X_OFFSET = int(BASE_DOWNLOAD_VIEW_SIZE_X_OFFSET * SCALE_FACTOR)
-    DOWNLOAD_VIEW_ETA_X_OFFSET = int(BASE_DOWNLOAD_VIEW_ETA_X_OFFSET * SCALE_FACTOR)
-    DOWNLOAD_VIEW_TEXT_SPACING = int(BASE_DOWNLOAD_VIEW_TEXT_SPACING * SCALE_FACTOR)
-    DOWNLOAD_VIEW_MIN_TEXT_SPACING = int(BASE_DOWNLOAD_VIEW_MIN_TEXT_SPACING * SCALE_FACTOR)
-    DOWNLOAD_VIEW_MAX_TEXT_SPACING = int(BASE_DOWNLOAD_VIEW_MAX_TEXT_SPACING * SCALE_FACTOR)
+    # Download view initial settings
+    DOWNLOAD_VIEW_START_Y = 70
+    DOWNLOAD_VIEW_ITEM_HEIGHT = 100
+    DOWNLOAD_VIEW_SPACING = 12
+    DOWNLOAD_VIEW_PROGRESS_BAR_HEIGHT = 16
+    DOWNLOAD_VIEW_SIDE_PADDING = 30
+    DOWNLOAD_VIEW_INNER_PADDING = 20
+    DOWNLOAD_VIEW_TEXT_PADDING = 30
+    DOWNLOAD_VIEW_TEXT_START_X = 30
+    DOWNLOAD_VIEW_TEXT_Y_OFFSET = 45
+    DOWNLOAD_VIEW_SPEED_X_OFFSET = 180
+    DOWNLOAD_VIEW_SIZE_X_OFFSET = 450
+    DOWNLOAD_VIEW_ETA_X_OFFSET = 700
+    DOWNLOAD_VIEW_TEXT_SPACING = 25
+    DOWNLOAD_VIEW_MIN_TEXT_SPACING = 15
+    DOWNLOAD_VIEW_MAX_TEXT_SPACING = 40
 
-    # Navigation constants
-    VISIBLE_DOWNLOADS = 5
-    MAX_CONCURRENT_DOWNLOADS = 4
-    CARDS_PER_ROW = 3
-    CARDS_PER_PAGE = 9  # 3x3 grid
-    GAMES_PER_PAGE = 10
-    
-    # Scroll bar settings (scaled)
-    BASE_SCROLL_BAR_WIDTH = 12
-    # BASE_SCROLL_BAR_HEIGHT = SCREEN_HEIGHT - 200
-    BASE_SCROLL_BAR_HEIGHT = VISIBLE_DOWNLOADS * (BASE_DOWNLOAD_VIEW_ITEM_HEIGHT + DOWNLOAD_VIEW_SPACING) - DOWNLOAD_VIEW_SPACING
-    BASE_SCROLL_BAR_X_OFFSET = 20
-    BASE_SCROLL_BAR_Y_OFFSET = BASE_DOWNLOAD_VIEW_START_Y
-    BASE_SCROLL_BAR_MIN_THUMB_HEIGHT = 30
-    
-    SCROLL_BAR_WIDTH = int(BASE_SCROLL_BAR_WIDTH * SCALE_FACTOR)
-    SCROLL_BAR_HEIGHT = int(BASE_SCROLL_BAR_HEIGHT * SCALE_FACTOR)
-    SCROLL_BAR_X_OFFSET = int(BASE_SCROLL_BAR_X_OFFSET * SCALE_FACTOR)
-    SCROLL_BAR_Y_OFFSET = int(BASE_SCROLL_BAR_Y_OFFSET * SCALE_FACTOR)
-    SCROLL_BAR_MIN_THUMB_HEIGHT = int(BASE_SCROLL_BAR_MIN_THUMB_HEIGHT * SCALE_FACTOR)
-    # Resource paths
-    FONT_SIZE = 16
-    
-    # Animation timings
-    LOADING_ANIMATION_SPEED = 100  # milliseconds per frame
-    IMAGE_LOAD_DELAY = 500  # milliseconds to wait before loading new image
+    # Scroll bar initial settings
+    SCROLL_BAR_WIDTH = 10
+    SCROLL_BAR_HEIGHT = 450
+    SCROLL_BAR_X_OFFSET = 18
+    SCROLL_BAR_Y_OFFSET = 70
+    SCROLL_BAR_MIN_THUMB_HEIGHT = 25
     
     # Network settings
     DOWNLOAD_CHUNK_SIZE = 8192
@@ -226,35 +170,103 @@ class Config:
     
     # UI constants
     MAX_TITLE_LENGTH = 50
-    PROGRESS_BAR_HEIGHT = 20
-    CARD_WIDTH = 200
-    CARD_HEIGHT = 150
-    CARD_MARGIN = 20
 
     @classmethod
     def update_screen_size(cls, width, height):
-        """Update screen size and recalculate all scaled dimensions"""
+        """Update screen size and recalculate all scaled dimensions responsively for any aspect ratio (16:9, 4:3, etc.)"""
         cls.SCREEN_WIDTH = width
         cls.SCREEN_HEIGHT = height
         cls.SCALE_X = width / cls.BASE_SCREEN_WIDTH
         cls.SCALE_Y = height / cls.BASE_SCREEN_HEIGHT
         cls.SCALE_FACTOR = min(cls.SCALE_X, cls.SCALE_Y)
         
-        # Update all scaled dimensions
-        for attr_name in dir(cls):
-            if attr_name.startswith('BASE_'):
-                scaled_attr_name = attr_name[5:]  # Remove 'BASE_' prefix
-                if hasattr(cls, scaled_attr_name):
-                    base_value = getattr(cls, attr_name)
-                    if isinstance(base_value, (int, float)):
-                        setattr(cls, scaled_attr_name, int(base_value * cls.SCALE_FACTOR))
+        # Responsive Font sizing
+        font_scale = (cls.SCALE_X + cls.SCALE_Y) / 2
+        cls.FONT_SIZE = max(20, int(cls.BASE_FONT_SIZE * font_scale))
+        cls.FONT_TITLE_SIZE = max(30, int(cls.BASE_FONT_TITLE_SIZE * font_scale))
+        cls.FONT_LARGE_SIZE = max(24, int(cls.BASE_FONT_LARGE_SIZE * font_scale))
+        
+        # 1. Platform & Source Cards Grid (3x3 layout filling the available area)
+        side_margin = int(width * 0.04)
+        top_margin = int(height * 0.08)
+        bottom_margin = int(height * 0.13)
+        grid_w = width - (side_margin * 2)
+        grid_h = height - top_margin - bottom_margin
+        
+        cls.GRID_SPACING = max(8, int(12 * cls.SCALE_FACTOR))
+        cls.CARD_WIDTH = (grid_w - (cls.CARDS_PER_ROW - 1) * cls.GRID_SPACING) // cls.CARDS_PER_ROW
+        cls.CARD_HEIGHT = (grid_h - (cls.CARDS_PER_ROW - 1) * cls.GRID_SPACING) // cls.CARDS_PER_ROW
+        cls.CARD_IMAGE_HEIGHT = int(cls.CARD_HEIGHT * 0.60)
+        
+        # 2. Games View (10 items filling vertical space, width distributed cleanly)
+        game_list_start_y = int(height * 0.10)
+        game_list_bottom_y = int(height * 0.12)
+        available_game_h = height - game_list_start_y - game_list_bottom_y
+        
+        cls.GAME_LIST_START_Y = game_list_start_y
+        cls.GAME_LIST_SPACING = max(4, int(6 * cls.SCALE_Y))
+        cls.GAME_LIST_ITEM_HEIGHT = (available_game_h - (cls.GAMES_PER_PAGE - 1) * cls.GAME_LIST_SPACING) // cls.GAMES_PER_PAGE
+        
+        # Check aspect ratio (4:3 vs 16:9)
+        aspect_ratio = width / height
+        if aspect_ratio < 1.5:  # 4:3 (e.g. 1024x768 TrimUI Brick)
+            cls.GAME_LIST_WIDTH = int(width * 0.52)
+            cls.GAME_LIST_IMAGE_SIZE = min(int(width * 0.38), available_game_h - 10)
+            cls.GAME_LIST_SPACING_BETWEEN = int(width * 0.04)
+        else:  # 16:9 (e.g. 1280x720 TrimUI Smart Pro)
+            cls.GAME_LIST_WIDTH = int(width * 0.46)
+            cls.GAME_LIST_IMAGE_SIZE = min(int(width * 0.36), available_game_h - 10)
+            cls.GAME_LIST_SPACING_BETWEEN = int(width * 0.08)
+            
+        cls.GAME_LIST_CARD_PADDING = max(10, int(15 * cls.SCALE_FACTOR))
+        
+        # 3. Control guides at bottom (icon size: ~24-26px, balanced with TTF text)
+        cls.CONTROL_HEIGHT = max(24, int(26 * cls.SCALE_Y))
+        cls.CONTROL_MARGIN = max(20, int(24 * cls.SCALE_X))
+        cls.CONTROL_BOTTOM_MARGIN = max(28, int(32 * cls.SCALE_Y))
+        cls.CONTROL_ITEM_SPACING = max(12, int(16 * cls.SCALE_X))
+        
+        # 4. Download View (5 items filling vertical area)
+        cls.DOWNLOAD_VIEW_START_Y = int(height * 0.09)
+        avail_dl_h = height - cls.DOWNLOAD_VIEW_START_Y - int(height * 0.10)
+        cls.DOWNLOAD_VIEW_SPACING = max(6, int(10 * cls.SCALE_Y))
+        cls.DOWNLOAD_VIEW_ITEM_HEIGHT = (avail_dl_h - (cls.VISIBLE_DOWNLOADS - 1) * cls.DOWNLOAD_VIEW_SPACING) // cls.VISIBLE_DOWNLOADS
+        cls.DOWNLOAD_VIEW_SIDE_PADDING = max(15, int(width * 0.03))
+        cls.DOWNLOAD_VIEW_PROGRESS_BAR_HEIGHT = max(12, int(16 * cls.SCALE_FACTOR))
+        
+        cls.DOWNLOAD_VIEW_TEXT_PADDING = max(15, int(30 * cls.SCALE_X))
+        cls.DOWNLOAD_VIEW_TEXT_START_X = max(15, int(30 * cls.SCALE_X))
+        cls.DOWNLOAD_VIEW_TEXT_Y_OFFSET = int(cls.DOWNLOAD_VIEW_ITEM_HEIGHT * 0.45)
+        cls.DOWNLOAD_VIEW_SPEED_X_OFFSET = int(width * 0.18)
+        cls.DOWNLOAD_VIEW_SIZE_X_OFFSET = int(width * 0.42)
+        cls.DOWNLOAD_VIEW_ETA_X_OFFSET = int(width * 0.65)
+        cls.DOWNLOAD_VIEW_TEXT_SPACING = max(15, int(25 * cls.SCALE_X))
+        cls.DOWNLOAD_VIEW_MIN_TEXT_SPACING = max(10, int(15 * cls.SCALE_X))
+        cls.DOWNLOAD_VIEW_MAX_TEXT_SPACING = max(25, int(40 * cls.SCALE_X))
+        
+        # Scroll bar
+        cls.SCROLL_BAR_WIDTH = max(8, int(10 * cls.SCALE_FACTOR))
+        cls.SCROLL_BAR_HEIGHT = cls.VISIBLE_DOWNLOADS * (cls.DOWNLOAD_VIEW_ITEM_HEIGHT + cls.DOWNLOAD_VIEW_SPACING) - cls.DOWNLOAD_VIEW_SPACING
+        cls.SCROLL_BAR_X_OFFSET = max(12, int(18 * cls.SCALE_X))
+        cls.SCROLL_BAR_Y_OFFSET = cls.DOWNLOAD_VIEW_START_Y
+        cls.SCROLL_BAR_MIN_THUMB_HEIGHT = max(20, int(25 * cls.SCALE_FACTOR))
+        
+        # Dialogs
+        cls.DIALOG_WIDTH = min(int(width * 0.85), int(600 * cls.SCALE_FACTOR))
+        cls.DIALOG_HEIGHT = min(int(height * 0.60), int(320 * cls.SCALE_FACTOR))
+        cls.DIALOG_PADDING = max(20, int(30 * cls.SCALE_FACTOR))
+        cls.DIALOG_LINE_HEIGHT = max(20, int(26 * cls.SCALE_FACTOR))
+        cls.DIALOG_TITLE_MARGIN = max(25, int(35 * cls.SCALE_FACTOR))
+        cls.DIALOG_MESSAGE_MARGIN = max(30, int(45 * cls.SCALE_FACTOR))
+        cls.DIALOG_BUTTON_Y = int(cls.DIALOG_HEIGHT * 0.72)
+        cls.DIALOG_BUTTON_X = int(cls.DIALOG_WIDTH * 0.40)
+        cls.DIALOG_BUTTON_WIDTH = max(80, int(100 * cls.SCALE_FACTOR))
 
     @classmethod
     def get_font_path(cls):
         """Find a suitable font file"""
         font_files = [
             os.path.join(cls.FONTS_DIR, cls.FONT_NAME),
-            # Add more fallback fonts if needed
         ]
         
         for font_path in font_files:
