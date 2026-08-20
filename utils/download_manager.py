@@ -179,13 +179,18 @@ class DownloadManager:
     def _download_worker(self, download_url):
         """Background worker to download the game file with multi-segment acceleration when possible."""
         try:
-            # 1. Initial probe request
-            head_resp = self.session.get(download_url, stream=True, timeout=30)
-            head_resp.raise_for_status()
+            # 1. Initial probe request. Closed as soon as the headers are read: a
+            # streamed response left open holds a pooled connection (and the
+            # server-side per-IP slot) for the entire download.
+            with self.session.get(download_url, stream=True, timeout=30) as head_resp:
+                head_resp.raise_for_status()
+                total_size = int(head_resp.headers.get('content-length', 0))
+                accept_ranges = head_resp.headers.get('accept-ranges', '').lower() == 'bytes'
+                # Range requests go to the already-resolved URL so each stream
+                # skips re-walking the redirect chain.
+                resolved_url = head_resp.url or download_url
             
-            total_size = int(head_resp.headers.get('content-length', 0))
             self.status["total_size"] = total_size
-            accept_ranges = head_resp.headers.get('accept-ranges', '').lower() == 'bytes'
             
             dest_file = os.path.join(self.download_path, self.filename)
             
@@ -211,8 +216,17 @@ class DownloadManager:
                     nonlocal downloaded
                     try:
                         part_headers = {"Range": f"bytes={start_byte}-{end_byte}"}
-                        with self.session.get(download_url, headers=part_headers, stream=True, timeout=(15, 60)) as r:
+                        with self.session.get(resolved_url, headers=part_headers, stream=True, timeout=(15, 60)) as r:
                             r.raise_for_status()
+                            # A host that advertises accept-ranges but ignores the
+                            # header answers 200 with the whole body. Accepting that
+                            # would have every stream write the full file at its own
+                            # offset, producing a corrupt ROM with no error raised.
+                            if r.status_code != 206:
+                                raise RuntimeError(
+                                    f"server ignored Range request (HTTP {r.status_code})"
+                                )
+                            written = 0
                             with open(dest_file, "r+b") as pf:
                                 pf.seek(start_byte)
                                 for chunk in r.iter_content(chunk_size=131072):
@@ -225,6 +239,7 @@ class DownloadManager:
                                             return
                                     if chunk:
                                         pf.write(chunk)
+                                        written += len(chunk)
                                         with self._download_lock:
                                             downloaded += len(chunk)
                                             self.status["current_size"] = downloaded
@@ -232,6 +247,14 @@ class DownloadManager:
                                             elapsed = time.time() - start_time
                                             if elapsed > 0:
                                                 self.status["download_speed"] = downloaded / elapsed
+                            # The file was pre-allocated to its full size, so a stream
+                            # that ends early leaves a hole of zeros instead of a short
+                            # file. Only an explicit byte count catches that.
+                            expected = end_byte - start_byte + 1
+                            if written != expected:
+                                raise RuntimeError(
+                                    f"segment {part_idx} truncated: {written}/{expected} bytes"
+                                )
                     except Exception as err:
                         stream_errors.append(err)
                         logger.warning(f"Segment {part_idx} download error: {err}")
@@ -253,6 +276,12 @@ class DownloadManager:
                     
                 if stream_errors and not self.cancel_download.is_set():
                     logger.warning(f"Segmented download encountered error, falling back to single-stream mode...")
+                    use_segmented = False
+                elif not self.cancel_download.is_set() and total_size > 0 and downloaded != total_size:
+                    logger.warning(
+                        f"Segmented download size mismatch ({downloaded}/{total_size} bytes), "
+                        "falling back to single-stream mode..."
+                    )
                     use_segmented = False
 
             if not use_segmented and not self.cancel_download.is_set():
@@ -282,6 +311,11 @@ class DownloadManager:
                                 self.status["progress"] = (downloaded / total_size * 100) if total_size > 0 else 0
                                 if elapsed > 0:
                                     self.status["download_speed"] = downloaded / elapsed
+
+                if not self.cancel_download.is_set() and total_size > 0 and downloaded != total_size:
+                    raise RuntimeError(
+                        f"Download incomplete: got {downloaded} of {total_size} bytes"
+                    )
 
             # Process the downloaded file if not cancelled
             if not self.cancel_download.is_set():
