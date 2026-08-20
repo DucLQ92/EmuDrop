@@ -7,6 +7,7 @@ import json
 import os
 from typing import Dict, Any
 
+from utils.config import Config
 from utils.logger import logger
 
 TRANSLATIONS: Dict[str, Dict[str, str]] = {
@@ -210,11 +211,10 @@ class I18nManager:
     
     def __init__(self):
         self.current_language = "vi"  # Default to Vietnamese
-        self.settings_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "assets",
-            "settings.json"
-        )
+        # Resolve against the binary location, not __file__: under a PyInstaller
+        # --onefile build __file__ points inside the temporary _MEIPASS extraction
+        # dir, where assets/ does not exist, so the setting could never be read back.
+        self.settings_path = os.path.join(Config.ASSETS_DIR, "settings.json")
         self.load_language_setting()
         
     def load_language_setting(self) -> None:
@@ -244,8 +244,12 @@ class I18nManager:
                     
             data["language"] = lang
             
-            with open(self.settings_path, 'w', encoding='utf-8') as f:
+            # Write atomically: settings.json is parsed at import time by Config
+            # with no error handling, so a half-written file would brick startup.
+            tmp_path = f"{self.settings_path}.tmp"
+            with open(tmp_path, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=4, ensure_ascii=False)
+            os.replace(tmp_path, self.settings_path)
                 
             logger.info(f"Saved language setting: {lang}")
             return True
