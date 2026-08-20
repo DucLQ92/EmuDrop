@@ -116,7 +116,9 @@ class DownloadView(BaseView):
         elif status["state"] == "processing":
             self._render_text_progress(
                 _t("processing"),
-                status.get('current_operation', ''),
+                # current_operation carries a translation key; _t passes any
+                # unrecognised string straight through.
+                _t(status.get('current_operation', '')),
                 y_offset
             )
             self._render_progress_bar(y_offset, status["progress"])

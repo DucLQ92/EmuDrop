@@ -12,6 +12,14 @@ from .base_view import BaseView
 class KeyboardView(BaseView):
     """View class for rendering the on-screen keyboard"""
     
+    # Layout ids -> translation keys. Looked up per frame so switching language
+    # takes effect without rebuilding the view.
+    KEY_CAPTIONS = {
+        'Space': 'key_space',
+        'Clear': 'key_clear',
+        'Return': 'key_return',
+    }
+
     def __init__(self, renderer, font=None):
         """Initialize the keyboard view with layout"""
         super().__init__(renderer, font)
@@ -215,9 +223,11 @@ class KeyboardView(BaseView):
                     sdl2.SDL_SetRenderDrawColor(self.renderer, *border_color)
                     sdl2.SDL_RenderDrawRect(self.renderer, key_rect)
 
-                    # Render key text
+                    # Render key text. 'Space'/'Clear'/'Return' double as the
+                    # layout's logic ids, so only the caption is translated.
                     text_color = Theme.KEYBOARD_KEY_TEXT_SELECTED if is_selected else Theme.KEYBOARD_KEY_TEXT
-                    display_text = key.upper()
+                    caption_key = self.KEY_CAPTIONS.get(key)
+                    display_text = (_t(caption_key) if caption_key else key).upper()
 
                     self.render_text(
                         display_text,

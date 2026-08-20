@@ -75,6 +75,18 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "scraping_message": "Please wait while cover image is being scraped",
         "cancelling": "Cancelling",
         "cancelling_message": "Please wait while files are being removed",
+        
+        # Background operations (shown as the download sub-status)
+        "op_extracting": "Extracting archive",
+        "op_moving_roms": "Moving to ROM folder",
+        "op_converting_chd": "Converting to CHD",
+        "op_converting_cue": "Converting to CUE",
+        "op_converting_bin": "Converting to BIN",
+        "op_scraping_covers": "Fetching cover image",
+        
+        # Error messages raised by the app itself
+        "err_no_download_url": "Could not retrieve the download link",
+        "err_incomplete_download": "Download incomplete ({got}/{total} bytes)",
         "completed": "Completed",
         "failed": "Failed",
         "error": "Error",
@@ -90,6 +102,11 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "ok": "OK",
         "cancel": "Cancel",
         
+        # On-screen keyboard
+        "key_space": "Space",
+        "key_clear": "Clear",
+        "key_return": "Return",
+        
         # Settings View
         "settings_title": "System Settings",
         "setting_language": "Language",
@@ -99,12 +116,12 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "setting_version": "EmuDrop Version",
         "lang_en": "English",
         "lang_vi": "Tiếng Việt",
+        "app_tagline": "Cross-platform retro game downloader",
         "hint_change": "Press ◄ ► or A to change",
         "hint_settings_saved": "Settings saved successfully",
         "credits_box_title": "✨ EmuDrop - Custom Edition",
         "credits_mod_by": "👤 Mod & UI Optimization: Unoken",
         "credits_base_on": "🔗 Original Project: Ahmad El-khatib (https://github.com/ahmadteeb/EmuDrop)",
-        "credits_community": "💡 Open-source & Free for the Retro Handheld Community",
     },
     "vi": {
         # App & General
@@ -170,6 +187,18 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "scraping_message": "Vui lòng đợi trong khi tải ảnh bìa",
         "cancelling": "Đang hủy",
         "cancelling_message": "Vui lòng đợi trong khi xóa file",
+        
+        # Background operations (shown as the download sub-status)
+        "op_extracting": "Đang giải nén",
+        "op_moving_roms": "Đang chuyển vào thư mục ROM",
+        "op_converting_chd": "Đang chuyển sang CHD",
+        "op_converting_cue": "Đang chuyển sang CUE",
+        "op_converting_bin": "Đang chuyển sang BIN",
+        "op_scraping_covers": "Đang tải ảnh bìa",
+        
+        # Error messages raised by the app itself
+        "err_no_download_url": "Không lấy được liên kết tải",
+        "err_incomplete_download": "Tải chưa hoàn tất ({got}/{total} byte)",
         "completed": "Hoàn tất",
         "failed": "Thất bại",
         "error": "Lỗi",
@@ -185,6 +214,11 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "ok": "Đồng ý",
         "cancel": "Hủy",
         
+        # On-screen keyboard
+        "key_space": "Cách",
+        "key_clear": "Xoá hết",
+        "key_return": "Xong",
+        
         # Settings View
         "settings_title": "Cài đặt Hệ thống",
         "setting_language": "Ngôn ngữ",
@@ -194,12 +228,12 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "setting_version": "Phiên bản EmuDrop",
         "lang_en": "English",
         "lang_vi": "Tiếng Việt",
+        "app_tagline": "Trình tải game retro đa nền tảng",
         "hint_change": "Nhấn ◄ ► hoặc A để đổi",
         "hint_settings_saved": "Đã lưu cài đặt",
         "credits_box_title": "✨ EmuDrop - Bản Việt Hóa & Tối Ưu Hệ Thống",
         "credits_mod_by": "👤 Mod & Tối ưu giao diện: Unoken",
         "credits_base_on": "🔗 Dự án gốc: Ahmad El-khatib (https://github.com/ahmadteeb/EmuDrop)",
-        "credits_community": "💡 Phát hành miễn phí phục vụ cộng đồng máy chơi game cầm tay",
     }
 }
 

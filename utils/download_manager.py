@@ -10,6 +10,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from utils.config import Config
+from utils.i18n import _t
 from utils.logger import logger
 from utils.screenscrapper import ScreenScraper
 from utils.games_extractor_converter import GamesExtractorConverter
@@ -203,7 +204,7 @@ class DownloadManager:
         if not download_url:
             logger.error("Could not retrieve download URL")
             self.status["state"] = "error"
-            self.status["error_message"] = "Could not retrieve download URL"
+            self.status["error_message"] = _t("err_no_download_url")
             return False
         
         self.status.update({
@@ -384,7 +385,7 @@ class DownloadManager:
 
                 if not self.cancel_download.is_set() and total_size > 0 and downloaded != total_size:
                     raise RuntimeError(
-                        f"Download incomplete: got {downloaded} of {total_size} bytes"
+                        _t("err_incomplete_download", got=downloaded, total=total_size)
                     )
 
             # Process the downloaded file if not cancelled
@@ -399,7 +400,7 @@ class DownloadManager:
                     
                     # Update status for scraping
                     self.status["state"] = "scraping"
-                    self.status["current_operation"] = "Scraping Cover Images"
+                    self.status["current_operation"] = "op_scraping_covers"
                     
                     scrapper = ScreenScraper()
                     for name in game_names_to_scrape:

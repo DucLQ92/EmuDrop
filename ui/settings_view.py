@@ -82,7 +82,7 @@ class SettingsView(BaseView):
                 },
                 {
                     "title": _t("setting_version"),
-                    "desc": "Cross-Platform Retro Game Downloader",
+                    "desc": _t("app_tagline"),
                     "value": "v2.1 (NextUI ARM64)",
                     "is_interactive": False,
                     "accent_val": False,
@@ -176,7 +176,7 @@ class SettingsView(BaseView):
 
             # 4. Render Credits & Attribution Box
             credits_y = hint_y + max(20, int(26 * Config.SCALE_Y))
-            credits_h = max(135, int(155 * Config.SCALE_Y))
+            credits_h = max(105, int(120 * Config.SCALE_Y))
             credits_rect = sdl2.SDL_Rect(
                 int(Config.CONTROL_MARGIN),
                 int(credits_y),
@@ -229,16 +229,6 @@ class SettingsView(BaseView):
                 box_pad_x,
                 line_start_y + line_spacing * 2,
                 color=(255, 210, 100),
-                center=False,
-                font=self.control_font
-            )
-
-            # Community note
-            self.render_text(
-                _t("credits_community"),
-                box_pad_x,
-                line_start_y + line_spacing * 3,
-                color=Theme.TEXT_SECONDARY,
                 center=False,
                 font=self.control_font
             )

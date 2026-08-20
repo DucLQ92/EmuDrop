@@ -21,12 +21,13 @@ class GamesExtractorConverter:
         self.status = status
         self.cancelled = False
     
-    def _run_command(self, cmd, operation_name=""):
+    def _run_command(self, cmd, operation_name="", status_key=None):
         """Run a command and update progress information.
         
         Args:
             cmd: Command to execute as list of arguments
-            operation_name: Name of the operation for progress tracking
+            operation_name: Name of the operation, used in logs and error text
+            status_key: Translation key shown in the UI while the command runs
             
         Returns:
             tuple: (success, error_message)
@@ -37,7 +38,7 @@ class GamesExtractorConverter:
         if self.cancelled:
             raise RuntimeError("Operation cancelled")
             
-        self.status['current_operation'] = operation_name
+        self.status['current_operation'] = status_key or operation_name
         try:
             shell = False
             # if windows remove ./ and set shell to True
@@ -155,7 +156,8 @@ class GamesExtractorConverter:
                 logger.info(f"{operation_name}: {input_file}")
                 success, result = self._run_command(
                     conversion_commands[converter_type],
-                    operation_name
+                    operation_name,
+                    status_key=f"op_converting_{converter_type}"
                 )
                 
                 if not success:
@@ -217,7 +219,7 @@ class GamesExtractorConverter:
             _normal_game_out()
             
         # Final move to ROM path
-        self.status['current_operation'] = "Moving to ROM directory"
+        self.status['current_operation'] = "op_moving_roms"
         output_files = os.listdir(output_path)
         if output_files:
             os.makedirs(self.rom_path, exist_ok=True)
@@ -267,7 +269,7 @@ class GamesExtractorConverter:
         if not os.path.exists(extract_to):
             os.makedirs(extract_to)
             
-        self.status['current_operation'] = "Extracting archive"
+        self.status['current_operation'] = "op_extracting"
         logger.info(f"Extracting {file}...")
         
         # Fast path: Native Python zipfile extraction for .zip files (fast & zero subprocess overhead)
@@ -291,7 +293,8 @@ class GamesExtractorConverter:
         # -y assumes yes on every prompt: the process has no interactive stdin.
         success, result = self._run_command(
             ["./7z", "x", "-y", file, f'-o{str(extract_to)}'],
-            "Extracting"
+            "Extracting",
+            status_key="op_extracting"
         )
         
         if not success:
