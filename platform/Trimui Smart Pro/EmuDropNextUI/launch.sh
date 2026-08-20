@@ -4,6 +4,8 @@ cd "$APP_DIR"
 
 # Ensure permissions
 chmod +x app_ota.sh db_ota.sh EmuDrop assets/infoscreen.sh
+# 7z/chdman/ccd2cue/ecm2bin ship without the bit set; extraction fails without this.
+chmod -R +x assets/executables 2>/dev/null || true
 
 # Logging setup
 LOG_FILE="$APP_DIR/log.txt"
@@ -59,12 +61,31 @@ if [ -f "$INFOSCREEN" ]; then
     fi
 fi
 
-# CPU Power Management: Use ondemand governor and set 408MHz minimum frequency floor
-if [ -f "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor" ]; then
-    echo ondemand > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null || true
+# CPU Power Management: ondemand + 408MHz floor keeps the device cool while
+# browsing. The originals are saved and restored on exit so whatever runs after
+# EmuDrop (emulators, MainUI) does not inherit our settings.
+GOV_PATH="/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor"
+MIN_FREQ_PATH="/sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq"
+ORIG_GOV=""
+ORIG_MIN_FREQ=""
+
+restore_cpu() {
+    if [ -n "$ORIG_GOV" ]; then
+        echo "$ORIG_GOV" > "$GOV_PATH" 2>/dev/null || true
+    fi
+    if [ -n "$ORIG_MIN_FREQ" ]; then
+        echo "$ORIG_MIN_FREQ" > "$MIN_FREQ_PATH" 2>/dev/null || true
+    fi
+}
+trap restore_cpu EXIT
+
+if [ -f "$GOV_PATH" ]; then
+    ORIG_GOV=$(cat "$GOV_PATH" 2>/dev/null)
+    echo ondemand > "$GOV_PATH" 2>/dev/null || true
 fi
-if [ -f "/sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq" ]; then
-    echo 408000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq 2>/dev/null || true
+if [ -f "$MIN_FREQ_PATH" ]; then
+    ORIG_MIN_FREQ=$(cat "$MIN_FREQ_PATH" 2>/dev/null)
+    echo 408000 > "$MIN_FREQ_PATH" 2>/dev/null || true
 fi
 if [ -d "/sys/devices/system/cpu/cpufreq/ondemand" ]; then
     echo 85 > /sys/devices/system/cpu/cpufreq/ondemand/up_threshold 2>/dev/null || true
