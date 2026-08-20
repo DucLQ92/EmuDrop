@@ -1,6 +1,7 @@
 #!/bin/bash
-APP_DIR=$(dirname "$0")
-cd $APP_DIR
+# Absolute, so paths built from it keep working after the cd below.
+APP_DIR=$(cd "$(dirname "$0")" && pwd)
+cd "$APP_DIR"
 
 chmod -R 777 .
 
@@ -25,15 +26,25 @@ MIN_FREQ_PATH="/sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq"
 ORIG_GOV=""
 ORIG_MIN_FREQ=""
 
-restore_cpu() {
+WIFI_IF=""
+ORIG_WIFI_PS=""
+ORIG_TCP_CC=""
+
+restore_system() {
     if [ -n "$ORIG_GOV" ]; then
         echo "$ORIG_GOV" > "$GOV_PATH" 2>/dev/null || true
     fi
     if [ -n "$ORIG_MIN_FREQ" ]; then
         echo "$ORIG_MIN_FREQ" > "$MIN_FREQ_PATH" 2>/dev/null || true
     fi
+    if [ -n "$WIFI_IF" ] && [ -n "$ORIG_WIFI_PS" ]; then
+        iw dev "$WIFI_IF" set power_save "$ORIG_WIFI_PS" 2>/dev/null || true
+    fi
+    if [ -n "$ORIG_TCP_CC" ]; then
+        echo "$ORIG_TCP_CC" > /proc/sys/net/ipv4/tcp_congestion_control 2>/dev/null || true
+    fi
 }
-trap restore_cpu EXIT
+trap restore_system EXIT
 
 if [ -f "$GOV_PATH" ]; then
     ORIG_GOV=$(cat "$GOV_PATH" 2>/dev/null)
@@ -62,6 +73,25 @@ if [ -f "/proc/sys/net/ipv4/tcp_wmem" ]; then
 fi
 if [ -f "/proc/sys/net/ipv4/tcp_window_scaling" ]; then
     echo 1 > /proc/sys/net/ipv4/tcp_window_scaling 2>/dev/null || true
+fi
+
+# WiFi power save parks the radio between beacons, which costs a lot of
+# throughput on these modules. Off for the session, restored on exit.
+if command -v iw >/dev/null 2>&1; then
+    WIFI_IF=$(iw dev 2>/dev/null | awk '$1=="Interface"{print $2; exit}')
+    if [ -n "$WIFI_IF" ]; then
+        ORIG_WIFI_PS=$(iw dev "$WIFI_IF" get power_save 2>/dev/null | awk '{print $NF}')
+        iw dev "$WIFI_IF" set power_save off 2>/dev/null || true
+    fi
+fi
+
+# BBR holds up much better than cubic on a lossy wifi link. Only if the kernel
+# actually ships it; most handheld kernels do not.
+if [ -f "/proc/sys/net/ipv4/tcp_available_congestion_control" ]; then
+    if grep -qw bbr /proc/sys/net/ipv4/tcp_available_congestion_control 2>/dev/null; then
+        ORIG_TCP_CC=$(cat /proc/sys/net/ipv4/tcp_congestion_control 2>/dev/null)
+        echo bbr > /proc/sys/net/ipv4/tcp_congestion_control 2>/dev/null || true
+    fi
 fi
 
 echo 1 > /tmp/stay_awake #keep screen awake
