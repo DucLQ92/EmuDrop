@@ -1,5 +1,6 @@
 import os
 import subprocess
+import zipfile
 from utils.logger import logger
 from utils.config import Config
 import shutil
@@ -45,6 +46,13 @@ class GamesExtractorConverter:
                 shell = True
                 
             exec_dir = os.environ.get('EXECUTABLES_DIR', os.path.join(Config.BASE_DIR, 'assets', 'executables'))
+            exec_bin = os.path.join(exec_dir, cmd[0].replace('./', ''))
+            if os.path.exists(exec_bin) and not os.access(exec_bin, os.X_OK):
+                try:
+                    os.chmod(exec_bin, 0o755)
+                except Exception:
+                    pass
+                    
             process = subprocess.Popen(
                 cmd,
                 cwd=exec_dir if os.path.exists(exec_dir) else None,
@@ -265,7 +273,6 @@ class GamesExtractorConverter:
         # Fast path: Native Python zipfile extraction for .zip files (fast & zero subprocess overhead)
         if file.lower().endswith('.zip'):
             try:
-                import zipfile
                 with zipfile.ZipFile(file, 'r') as zip_ref:
                     zip_ref.extractall(extract_to)
                 os.remove(file)
@@ -273,9 +280,17 @@ class GamesExtractorConverter:
                 return
             except Exception as ze:
                 logger.warning(f"Native zipfile extraction failed, falling back to 7z: {ze}")
+                # Clear whatever the aborted run left behind. 7z would otherwise
+                # hit an overwrite prompt on those files with no tty to answer it.
+                try:
+                    shutil.rmtree(extract_to)
+                    os.makedirs(extract_to, exist_ok=True)
+                except Exception as ce:
+                    logger.warning(f"Could not clear partial extraction dir: {ce}")
         
+        # -y assumes yes on every prompt: the process has no interactive stdin.
         success, result = self._run_command(
-            ["./7z", "x", file, f'-o{str(extract_to)}'],
+            ["./7z", "x", "-y", file, f'-o{str(extract_to)}'],
             "Extracting"
         )
         
