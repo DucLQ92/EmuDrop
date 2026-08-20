@@ -291,12 +291,16 @@ class I18nManager:
             logger.error(f"Error saving language setting: {e}", exc_info=True)
             return False
 
-    def toggle_language(self) -> str:
-        """Toggle between available languages and save."""
+    def cycle_language(self, step: int = 1) -> str:
+        """Move `step` places through the language list (negative goes back) and save."""
         idx = self.SUPPORTED_LANGUAGES.index(self.current_language)
-        new_lang = self.SUPPORTED_LANGUAGES[(idx + 1) % len(self.SUPPORTED_LANGUAGES)]
+        new_lang = self.SUPPORTED_LANGUAGES[(idx + step) % len(self.SUPPORTED_LANGUAGES)]
         self.save_language_setting(new_lang)
         return new_lang
+
+    def toggle_language(self) -> str:
+        """Advance to the next available language and save."""
+        return self.cycle_language(1)
 
     def get(self, key: str, **kwargs) -> str:
         """Get translated text for the given key with optional formatting."""

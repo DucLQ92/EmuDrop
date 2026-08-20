@@ -1,6 +1,7 @@
 """
 Base view class that provides common functionality for all views.
 """
+from collections import OrderedDict
 from typing import Dict, List, Optional, Tuple
 import sdl2
 import math
@@ -18,8 +19,13 @@ class BaseView:
     # Class-level cache for static background and text textures (saves huge CPU load)
     _bg_texture = None
     _bg_texture_size = (0, 0)
-    _text_cache: Dict[Tuple, Tuple[sdl2.SDL_Texture, int, int]] = {}
-    _text_cache_keys: List[Tuple] = []
+    # Ordered by least-recently-used: a cache hit moves its key to the end so
+    # the strings drawn every frame are never the ones evicted.
+    _text_cache: "OrderedDict[Tuple, Tuple[sdl2.SDL_Texture, int, int]]" = OrderedDict()
+    # Fonts are shared process-wide, keyed by (size, bold). Every view used to
+    # open its own copy of the same 275KB TTF, and the text cache keys on the
+    # font pointer, so sharing also lets views reuse each other's glyph textures.
+    _font_cache: Dict[Tuple[int, bool], object] = {}
     
     def __init__(self, renderer, font=None, title_font=None, card_font=None, control_font=None):
         """Initialize the base view with common components and scalable typography"""
@@ -44,7 +50,42 @@ class BaseView:
             if tex:
                 sdl2.SDL_DestroyTexture(tex)
         cls._text_cache.clear()
-        cls._text_cache_keys.clear()
+        
+    @classmethod
+    def load_font(cls, size: int = None, bold: bool = True):
+        """Open a font through the shared cache, or return the cached instance."""
+        font_size = size if size else Config.FONT_SIZE
+        cache_key = (font_size, bold)
+        cached = cls._font_cache.get(cache_key)
+        if cached:
+            return cached
+            
+        font_path = Config.get_font_path()
+        if not font_path:
+            return None
+        try:
+            font = sdl2.sdlttf.TTF_OpenFont(font_path.encode('utf-8'), font_size)
+            if font:
+                if bold:
+                    sdl2.sdlttf.TTF_SetFontStyle(font, sdl2.sdlttf.TTF_STYLE_BOLD)
+                cls._font_cache[cache_key] = font
+                logger.info(f"Font loaded successfully: {font_path} (size={font_size}, bold={bold})")
+                return font
+        except Exception as e:
+            logger.error(f"Failed to load font: {e}")
+        return None
+        
+    @classmethod
+    def clear_fonts(cls):
+        """Close every cached font. Drops the text cache too, since its keys
+        reference font pointers that a later TTF_OpenFont may well reuse."""
+        cls.clear_cache()
+        for font in cls._font_cache.values():
+            try:
+                sdl2.sdlttf.TTF_CloseFont(font)
+            except Exception:
+                pass
+        cls._font_cache.clear()
         
     def _ensure_bg_texture(self) -> None:
         """Pre-bake a sleek static gradient background texture once (0.1ms creation, 0 CPU overhead in render loop)"""
@@ -89,19 +130,7 @@ class BaseView:
     
     def _load_font(self, size: int = None, bold: bool = True):
         """Load the font with the specified scaled size and bold style"""
-        font_path = Config.get_font_path()
-        if font_path:
-            try:
-                font_size = size if size else Config.FONT_SIZE
-                font = sdl2.sdlttf.TTF_OpenFont(font_path.encode('utf-8'), font_size)
-                if font:
-                    if bold:
-                        sdl2.sdlttf.TTF_SetFontStyle(font, sdl2.sdlttf.TTF_STYLE_BOLD)
-                    logger.info(f"Font loaded successfully: {font_path} (size={font_size}, bold={bold})")
-                    return font
-            except Exception as e:
-                logger.error(f"Failed to load font: {e}")
-        return None
+        return BaseView.load_font(size, bold)
         
     def render_title(self, title: str) -> None:
         """Render a large bold title at the top of the view"""
@@ -185,8 +214,10 @@ class BaseView:
             color_rgb = (int(color[0]), int(color[1]), int(color[2]))
             cache_key = (text, color_rgb, font_id)
             
-            if cache_key in BaseView._text_cache:
-                return BaseView._text_cache[cache_key]
+            cached = BaseView._text_cache.get(cache_key)
+            if cached is not None:
+                BaseView._text_cache.move_to_end(cache_key)
+                return cached
                 
             text_color = sdl2.SDL_Color(*color_rgb)
             surface = sdl2.sdlttf.TTF_RenderUTF8_Blended(target_font, text.encode('utf-8'), text_color)
@@ -196,15 +227,13 @@ class BaseView:
                 height = surface.contents.h
                 sdl2.SDL_FreeSurface(surface)
                 if texture:
-                    # LRU Eviction: keep cache size bounded to 256 textures
-                    if len(BaseView._text_cache) >= 256:
-                        oldest_key = BaseView._text_cache_keys.pop(0)
-                        old_tex, _, _ = BaseView._text_cache.pop(oldest_key, (None, 0, 0))
+                    # LRU eviction: keep the cache bounded to 256 textures
+                    while len(BaseView._text_cache) >= 256:
+                        _, (old_tex, _, _) = BaseView._text_cache.popitem(last=False)
                         if old_tex:
                             sdl2.SDL_DestroyTexture(old_tex)
                     
                     BaseView._text_cache[cache_key] = (texture, width, height)
-                    BaseView._text_cache_keys.append(cache_key)
                     return texture, width, height
         except Exception as e:
             logger.error(f"Error getting cached text texture: {e}", exc_info=True)

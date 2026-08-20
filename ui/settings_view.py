@@ -18,11 +18,17 @@ from utils.profiler import profiler
 class SettingsView(BaseView):
     """View for configuring application settings."""
 
+    # Single source of truth for the row order; render() builds one entry each.
+    SETTING_ROWS = ('language', 'device', 'version')
+
     def __init__(self, renderer, font=None, bold_font=None, texture_callback=None):
         super().__init__(renderer, font)
         self.bold_font = bold_font if bold_font else font
         self.selected_index = 0
-        self.items_count = 3  # 0: Language, 1: Device, 2: Version
+
+    @property
+    def items_count(self) -> int:
+        return len(self.SETTING_ROWS)
 
     def handle_navigation(self, direction: int) -> None:
         """Handle Up/Down navigation in settings list."""
@@ -30,9 +36,10 @@ class SettingsView(BaseView):
 
     def handle_action(self, change_dir: int = 1) -> None:
         """Handle Left/Right or A button action on selected setting."""
-        if self.selected_index == 0:
-            # Toggle language
-            i18n.toggle_language()
+        if self.SETTING_ROWS[self.selected_index] == 'language':
+            # Left steps backwards through the list, right/A forwards.
+            i18n.cycle_language(change_dir)
+            # Every cached glyph texture holds the previous language's text.
             BaseView.clear_cache()
 
     def render(self, active_downloads_count: int = 0) -> None:

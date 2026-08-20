@@ -18,3 +18,10 @@ release/
 log.txt
 *.spec
 .DS_Store
+
+# Binaries copied into the pak templates by `make package-*`; rebuilt from
+# dist/EmuDrop on every package run, so there is no reason to track them.
+platform/Trimui Smart Pro/EmuDropNextUI/EmuDrop
+platform/Trimui Smart Pro/EmuDropStockOS/EmuDrop
+platform/Trimui Smart Pro/EmuDropKnulli/EmuDrop
+platform/Trimui Smart Pro/EmuDrop/EmuDrop

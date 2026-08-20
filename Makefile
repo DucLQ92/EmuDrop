@@ -110,5 +110,5 @@ package-all: package-nextui package-crossmix package-stock package-knulli
 	@echo "📂 Xem toàn bộ sản phẩm đầu ra tại thư mục: release/"
 
 clean:
-	@rm -rf build dist release *.spec
+	@rm -rf build dist release
 	@echo "🧹 Đã dọn dẹp sạch các thư mục build."

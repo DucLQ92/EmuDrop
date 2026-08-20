@@ -28,6 +28,7 @@ from utils.texture_manager import TextureManager
 from utils.download_manager import DownloadManager
 from utils.theme import Theme
 from utils.alert_manager import AlertManager
+from ui.base_view import BaseView
 from ui.loading_screen import LoadingScreen
 from ui.confirmation_dialog import ConfirmationDialog
 from ui.download_view import DownloadView
@@ -267,32 +268,21 @@ class GameDownloaderApp:
             return renderer
 
     def _load_font(self, size: int = None, bold: bool = True) -> sdl2.sdlttf.TTF_Font:
-        """Load the application font with specified size and bold style."""
-        font_path = Config.get_font_path()
-        if not font_path:
+        """Load the application font, sharing one instance per (size, bold)."""
+        if not Config.get_font_path():
             raise RuntimeError("No suitable font found in configuration")
 
-        font_size = size if size else Config.FONT_SIZE
-        with self._sdl_error_context("Font loading"):
-            font = sdl2.sdlttf.TTF_OpenFont(font_path.encode('utf-8'), font_size)
-            if not font:
-                raise SDLError(sdl2.sdlttf.TTF_GetError().decode('utf-8'))
-            
-            if bold:
-                sdl2.sdlttf.TTF_SetFontStyle(font, sdl2.sdlttf.TTF_STYLE_BOLD)
-                
-            logger.info(f"Loaded font (size {font_size}, bold={bold}): {font_path}")
-            return font
+        font = BaseView.load_font(size, bold)
+        if not font:
+            raise SDLError(sdl2.sdlttf.TTF_GetError().decode('utf-8'))
+        return font
 
     def _initialize_views(self) -> None:
         """Initialize or reinitialize all views with current screen dimensions."""
-        # Close old fonts if any
-        for f in ['font', 'title_font', 'card_font']:
-            if hasattr(self, f) and getattr(self, f):
-                try:
-                    sdl2.sdlttf.TTF_CloseFont(getattr(self, f))
-                except Exception:
-                    pass
+        # Drop every cached font and texture: sizes are derived from the screen
+        # dimensions, and the text cache keys on font pointers that a fresh
+        # TTF_OpenFont is free to hand back at the same address.
+        BaseView.clear_fonts()
                     
         self.font = self._load_font(Config.FONT_SIZE, bold=True)
         self.title_font = self._load_font(Config.FONT_TITLE_SIZE, bold=True)
@@ -1446,12 +1436,10 @@ class GameDownloaderApp:
             except Exception:
                 pass
 
-            for f in ['font', 'title_font', 'card_font']:
-                if hasattr(self, f) and getattr(self, f):
-                    try:
-                        sdl2.sdlttf.TTF_CloseFont(getattr(self, f))
-                    except Exception:
-                        pass
+            try:
+                BaseView.clear_fonts()
+            except Exception:
+                pass
                 
             if hasattr(self, 'joystick') and self.joystick:
                 sdl2.SDL_JoystickClose(self.joystick)
