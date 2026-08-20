@@ -1,3 +1,4 @@
+import glob
 import os
 import shutil
 import threading
@@ -34,6 +35,74 @@ def create_optimized_session() -> Session:
     session.mount("https://", adapter)
     session.headers.update(DEFAULT_HEADERS)
     return session
+
+
+class CpuGovernor:
+    """Raises the CPU governor while transfers are in flight, then puts it back.
+
+    The launcher pins the device to ondemand with a 408MHz floor to keep it
+    cool while browsing. Downloads are I/O bound, so that governor sees an
+    idle-looking CPU and holds the cores near the floor, which throttles both
+    TCP handling and unzip throughput. Boost only while work is running.
+    """
+
+    GOVERNOR_PATHS = "/sys/devices/system/cpu/cpu*/cpufreq/scaling_governor"
+    BOOST = "performance"
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._active = 0
+        self._saved = {}
+
+    @staticmethod
+    def _read(path):
+        try:
+            with open(path, "r") as f:
+                return f.read().strip()
+        except Exception:
+            return None
+
+    @staticmethod
+    def _write(path, value):
+        try:
+            with open(path, "w") as f:
+                f.write(value)
+            return True
+        except Exception:
+            return False
+
+    def _boost_supported(self, gov_path):
+        avail = self._read(gov_path.replace("scaling_governor", "scaling_available_governors"))
+        return bool(avail) and self.BOOST in avail.split()
+
+    def acquire(self):
+        """Register one active transfer, boosting on the first one."""
+        with self._lock:
+            self._active += 1
+            if self._active > 1:
+                return
+            for gov_path in glob.glob(self.GOVERNOR_PATHS):
+                current = self._read(gov_path)
+                if not current or current == self.BOOST or not self._boost_supported(gov_path):
+                    continue
+                if self._write(gov_path, self.BOOST):
+                    self._saved[gov_path] = current
+            if self._saved:
+                logger.info(f"CPU governor boosted to {self.BOOST} for active downloads")
+
+    def release(self):
+        """Unregister one transfer, restoring the governor when none are left."""
+        with self._lock:
+            self._active = max(0, self._active - 1)
+            if self._active > 0 or not self._saved:
+                return
+            for gov_path, previous in self._saved.items():
+                self._write(gov_path, previous)
+            logger.info("CPU governor restored after downloads finished")
+            self._saved = {}
+
+
+cpu_governor = CpuGovernor()
 
 
 @dataclass
@@ -178,6 +247,7 @@ class DownloadManager:
 
     def _download_worker(self, download_url):
         """Background worker to download the game file with multi-segment acceleration when possible."""
+        cpu_governor.acquire()
         try:
             # 1. Initial probe request. Closed as soon as the headers are read: a
             # streamed response left open holds a pooled connection (and the
@@ -356,6 +426,7 @@ class DownloadManager:
             self.status["error_message"] = str(e)
         
         finally:
+            cpu_governor.release()
             if not self.cancel_download.is_set():
                 try:
                     shutil.rmtree(self.download_path)

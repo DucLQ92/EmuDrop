@@ -74,7 +74,9 @@ class Config:
     CARDS_PER_ROW = 3
     CARDS_PER_PAGE = 9
     VISIBLE_DOWNLOADS = 5
-    MAX_CONCURRENT_DOWNLOADS = 4
+    # 2 downloads x 3 range streams = 6 sockets. Going wider tends to lose
+    # throughput on handheld wifi and trips rate limiting on ROM mirrors.
+    MAX_CONCURRENT_DOWNLOADS = 2
     
     # Grid and card initial settings (will be dynamically calculated by update_screen_size)
     GRID_SPACING = 10
