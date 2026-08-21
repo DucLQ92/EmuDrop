@@ -1,0 +1,23 @@
+{
+  "name": "EmuDrop",
+  "version": "v2.1.6.1",
+  "type": "TOOL",
+  "description": "Trình tải ROM cho máy chơi game cầm tay: duyệt theo hệ máy, tìm kiếm và tải game ngay trên máy. Bản Việt hóa dựa trên EmuDrop của ahmadteeb, đã tắt tự cập nhật để Pak Store lo việc đó.",
+  "author": "ahmadteeb",
+  "repo_url": "https://github.com/DucLQ92/EmuDrop",
+  "release_filename": "EmuDrop.pak.zip",
+  "screenshots": [
+    "screenshots/platforms.png",
+    "screenshots/games.png",
+    "screenshots/search.png",
+    "screenshots/downloads.png",
+    "screenshots/sources.png"
+  ],
+  "platforms": [
+    "tg5040",
+    "tg5050"
+  ],
+  "changelog": {
+    "v2.1.6.1": "Bản Việt hóa đầu tiên phát hành qua Pak Store. Dựa trên EmuDrop v2.1.6 của ahmadteeb, thêm giao diện tiếng Việt và một số tinh chỉnh hiệu năng."
+  }
+}
