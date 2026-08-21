@@ -6,6 +6,7 @@ from typing import List, Dict
 from utils.theme import Theme
 from utils.config import Config
 from utils.logger import logger
+from utils.i18n import _t
 from .base_view import BaseView
 
 class SourcesView(BaseView):
@@ -21,7 +22,7 @@ class SourcesView(BaseView):
         """
         try:
             # Render the title at the top
-            self.render_title("Sources")
+            self.render_title(_t("sources"))
             
             # Render control guides
             controls = {
@@ -46,7 +47,7 @@ class SourcesView(BaseView):
             
             if not sources:
                 self.render_text(
-                        "No sources available",
+                        _t("no_sources_found"),
                         Config.SCREEN_WIDTH // 2,
                         Config.SCREEN_HEIGHT // 2,
                         color=Theme.TEXT_SECONDARY,
@@ -60,7 +61,7 @@ class SourcesView(BaseView):
             # Calculate grid layout
             start_x = (Config.SCREEN_WIDTH - (Config.CARD_WIDTH * Config.CARDS_PER_ROW + 
                      Config.GRID_SPACING * (Config.CARDS_PER_ROW - 1))) // 2
-            start_y = int(100 * Config.SCALE_FACTOR)  # Scale the top margin like in platformsView
+            start_y = int(72 * Config.SCALE_Y)  # Responsive top margin
             
             # Render source cards
             for i, source in enumerate(page_sources):
@@ -103,10 +104,14 @@ class SourcesView(BaseView):
                 self.render_text(
                     source['source_name'],
                     x + Config.CARD_WIDTH // 2,
-                    y + Config.CARD_HEIGHT // 2,
-                    color=Theme.TEXT_PRIMARY if is_selected else Theme.TEXT_SECONDARY,
-                    center=True
+                    y + Config.CARD_HEIGHT // 2 - int(Config.FONT_LARGE_SIZE // 2),
+                    color=Theme.TEXT_HIGHLIGHT if is_selected else Theme.TEXT_PRIMARY,
+                    center=True,
+                    font=self.card_font
                 )
+            
+            # Render page navigation
+            self._render_page_navigation(current_page, total_pages)
             
         except Exception as e:
             logger.error(f"Error rendering sources view: {e}", exc_info=True)

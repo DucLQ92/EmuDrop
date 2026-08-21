@@ -1,5 +1,6 @@
 import os
 import subprocess
+import zipfile
 from utils.logger import logger
 from utils.config import Config
 import shutil
@@ -9,7 +10,9 @@ class GamesExtractorConverter:
     def __init__(self, status, game_prop, download_path) -> None:
         self.platform_id = game_prop.platform_id
         self.download_path = download_path
-        self.rom_path = os.path.join(os.environ['ROMS_DIR'], Config.SYSTEMS_MAPPING[game_prop.platform_id])
+        roms_base = os.environ.get('ROMS_DIR', '/mnt/SDCARD/Roms/')
+        system_folder = Config.SYSTEMS_MAPPING.get(game_prop.platform_id, game_prop.platform_id)
+        self.rom_path = os.path.join(roms_base, system_folder)
         self.isExtractable = game_prop.isExtractable
         self.canBeRenamed = game_prop.canBeRenamed
         self.game_name = game_prop.name
@@ -18,12 +21,13 @@ class GamesExtractorConverter:
         self.status = status
         self.cancelled = False
     
-    def _run_command(self, cmd, operation_name=""):
+    def _run_command(self, cmd, operation_name="", status_key=None):
         """Run a command and update progress information.
         
         Args:
             cmd: Command to execute as list of arguments
-            operation_name: Name of the operation for progress tracking
+            operation_name: Name of the operation, used in logs and error text
+            status_key: Translation key shown in the UI while the command runs
             
         Returns:
             tuple: (success, error_message)
@@ -34,7 +38,7 @@ class GamesExtractorConverter:
         if self.cancelled:
             raise RuntimeError("Operation cancelled")
             
-        self.status['current_operation'] = operation_name
+        self.status['current_operation'] = status_key or operation_name
         try:
             shell = False
             # if windows remove ./ and set shell to True
@@ -42,9 +46,17 @@ class GamesExtractorConverter:
                 cmd[0] = cmd[0].replace('./', '')
                 shell = True
                 
+            exec_dir = os.environ.get('EXECUTABLES_DIR', os.path.join(Config.BASE_DIR, 'assets', 'executables'))
+            exec_bin = os.path.join(exec_dir, cmd[0].replace('./', ''))
+            if os.path.exists(exec_bin) and not os.access(exec_bin, os.X_OK):
+                try:
+                    os.chmod(exec_bin, 0o755)
+                except Exception:
+                    pass
+                    
             process = subprocess.Popen(
                 cmd,
-                cwd=os.environ['EXECUTABLES_DIR'],
+                cwd=exec_dir if os.path.exists(exec_dir) else None,
                 start_new_session=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -144,7 +156,8 @@ class GamesExtractorConverter:
                 logger.info(f"{operation_name}: {input_file}")
                 success, result = self._run_command(
                     conversion_commands[converter_type],
-                    operation_name
+                    operation_name,
+                    status_key=f"op_converting_{converter_type}"
                 )
                 
                 if not success:
@@ -206,7 +219,7 @@ class GamesExtractorConverter:
             _normal_game_out()
             
         # Final move to ROM path
-        self.status['current_operation'] = "Moving to ROM directory"
+        self.status['current_operation'] = "op_moving_roms"
         output_files = os.listdir(output_path)
         if output_files:
             os.makedirs(self.rom_path, exist_ok=True)
@@ -256,12 +269,32 @@ class GamesExtractorConverter:
         if not os.path.exists(extract_to):
             os.makedirs(extract_to)
             
-        self.status['current_operation'] = "Extracting archive"
+        self.status['current_operation'] = "op_extracting"
         logger.info(f"Extracting {file}...")
         
+        # Fast path: Native Python zipfile extraction for .zip files (fast & zero subprocess overhead)
+        if file.lower().endswith('.zip'):
+            try:
+                with zipfile.ZipFile(file, 'r') as zip_ref:
+                    zip_ref.extractall(extract_to)
+                os.remove(file)
+                logger.info(f"File {file} has been extracted successfully with zipfile")
+                return
+            except Exception as ze:
+                logger.warning(f"Native zipfile extraction failed, falling back to 7z: {ze}")
+                # Clear whatever the aborted run left behind. 7z would otherwise
+                # hit an overwrite prompt on those files with no tty to answer it.
+                try:
+                    shutil.rmtree(extract_to)
+                    os.makedirs(extract_to, exist_ok=True)
+                except Exception as ce:
+                    logger.warning(f"Could not clear partial extraction dir: {ce}")
+        
+        # -y assumes yes on every prompt: the process has no interactive stdin.
         success, result = self._run_command(
-            ["./7z", "x", file, f'-o{str(extract_to)}'],
-            "Extracting"
+            ["./7z", "x", "-y", file, f'-o{str(extract_to)}'],
+            "Extracting",
+            status_key="op_extracting"
         )
         
         if not success:

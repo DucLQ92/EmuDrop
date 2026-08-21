@@ -1,14 +1,110 @@
+import glob
 import os
 import shutil
-from requests import Session
 import threading
 import time
 import json
 from dataclasses import dataclass, fields
+from requests import Session
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
 from utils.config import Config
+from utils.i18n import _t
 from utils.logger import logger
 from utils.screenscrapper import ScreenScraper
 from utils.games_extractor_converter import GamesExtractorConverter
+
+
+DEFAULT_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Accept": "*/*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "identity",
+    "Connection": "keep-alive",
+}
+
+def create_optimized_session() -> Session:
+    """Create requests Session configured for high-speed file transfers with connection pooling."""
+    session = Session()
+    adapter = HTTPAdapter(
+        pool_connections=16,
+        pool_maxsize=16,
+        max_retries=Retry(total=3, backoff_factor=0.3, status_forcelist=[500, 502, 503, 504])
+    )
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+    session.headers.update(DEFAULT_HEADERS)
+    return session
+
+
+class CpuGovernor:
+    """Raises the CPU governor while transfers are in flight, then puts it back.
+
+    The launcher pins the device to ondemand with a 408MHz floor to keep it
+    cool while browsing. Downloads are I/O bound, so that governor sees an
+    idle-looking CPU and holds the cores near the floor, which throttles both
+    TCP handling and unzip throughput. Boost only while work is running.
+    """
+
+    GOVERNOR_PATHS = "/sys/devices/system/cpu/cpu*/cpufreq/scaling_governor"
+    BOOST = "performance"
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._active = 0
+        self._saved = {}
+
+    @staticmethod
+    def _read(path):
+        try:
+            with open(path, "r") as f:
+                return f.read().strip()
+        except Exception:
+            return None
+
+    @staticmethod
+    def _write(path, value):
+        try:
+            with open(path, "w") as f:
+                f.write(value)
+            return True
+        except Exception:
+            return False
+
+    def _boost_supported(self, gov_path):
+        avail = self._read(gov_path.replace("scaling_governor", "scaling_available_governors"))
+        return bool(avail) and self.BOOST in avail.split()
+
+    def acquire(self):
+        """Register one active transfer, boosting on the first one."""
+        with self._lock:
+            self._active += 1
+            if self._active > 1:
+                return
+            for gov_path in glob.glob(self.GOVERNOR_PATHS):
+                current = self._read(gov_path)
+                if not current or current == self.BOOST or not self._boost_supported(gov_path):
+                    continue
+                if self._write(gov_path, self.BOOST):
+                    self._saved[gov_path] = current
+            if self._saved:
+                logger.info(f"CPU governor boosted to {self.BOOST} for active downloads")
+
+    def release(self):
+        """Unregister one transfer, restoring the governor when none are left."""
+        with self._lock:
+            self._active = max(0, self._active - 1)
+            if self._active > 0 or not self._saved:
+                return
+            for gov_path, previous in self._saved.items():
+                self._write(gov_path, previous)
+            logger.info("CPU governor restored after downloads finished")
+            self._saved = {}
+
+
+cpu_governor = CpuGovernor()
+
 
 @dataclass
 class GameProp:
@@ -21,20 +117,15 @@ class GameProp:
     source_name: str
     attributes: str
 
+
 class DownloadManager:
-    """Manages game downloads with progress tracking and cancellation support"""
+    """Manages game downloads with multi-connection segmentation, progress tracking, and cancellation support."""
 
     # Class variable to track all download managers
     _all_managers = []
     
     def __init__(self, game: dict):
-        """
-        Initialize download manager for a specific game
-        
-        :param game_name: Name of the game to download
-        :param game_url: URL to request download link
-        """
-        
+        """Initialize download manager for a specific game."""
         game_fields = {f.name for f in fields(GameProp)}
         filtered_data = {k: v for k, v in game.items() if k in game_fields}
         self.game_prop = GameProp(**filtered_data)
@@ -44,7 +135,7 @@ class DownloadManager:
         
         self.download_path = os.path.join(Config.DOWNLOAD_DIR, self.game_prop.name)
         
-        # Download state as JSON
+        # Download state
         self.status = {
             "state": "queued",  # queued, downloading, processing, scraping, completed, error, cancelled
             "progress": 0,
@@ -63,21 +154,24 @@ class DownloadManager:
         
         # Thread references
         self.download_url = None
-        self.session = Session()
+        self.session = create_optimized_session()
         self.download_thread = None
         self.size_check_thread = None
         self.size_check_complete = threading.Event()
         self.size_check_error = None
+        # Filled by the size check so the download does not re-ask the server
+        # for headers it already has.
+        self._probe = None
         self.gameExtractorConverter = None
+        self.filename = ""
+        self._download_lock = threading.Lock()
         
-    
-    
     def add_manager(self):
         DownloadManager._all_managers.append(self)
         self._update_queue_positions()
         
     def _update_queue_positions(self):
-        """Update queue positions for all queued downloads"""
+        """Update queue positions for all queued downloads."""
         queued_managers = [m for m in DownloadManager._all_managers if m.status["state"] == "queued"]
         for i, manager in enumerate(queued_managers):
             manager.status["queue_position"] = i + 1
@@ -85,13 +179,11 @@ class DownloadManager:
     def _get_download_url(self):
         if self.download_url:
             return self.download_url
-        
-        
+            
         self.filename = self.get_file_name_from_url(self.game_prop.game_url)
         return self.game_prop.game_url
     
     def get_file_name_from_url(self, text):
-        # Dictionary of URL-encoded characters
         decode_map = {
             "%20": " ", "%21": "!", "%22": '"', "%23": "#", "%24": "$", "%25": "%", "%26": "&",
             "%27": "'", "%28": "(", "%29": ")", "%2A": "*", "%2B": "+", "%2C": ",", "%2D": "-",
@@ -99,7 +191,6 @@ class DownloadManager:
             "%3F": "?", "%40": "@", "%5B": "[", "%5C": "\\", "%5D": "]", "%5E": "^", "%5F": "_",
             "%60": "`", "%7B": "{", "%7C": "|", "%7D": "}", "%7E": "~"
         }
-        # Replace each encoded character with its actual character
         for encoded, decoded in decode_map.items():
             text = text.replace(encoded, decoded)
         
@@ -107,25 +198,18 @@ class DownloadManager:
         return file_name
 
     def start_download(self):
-        """
-        Start downloading the game
-        
-        :return: True if download started, False otherwise
-        """
-        # Prevent multiple simultaneous downloads
+        """Start downloading the game."""
         if self.status["state"] == "downloading":
             logger.warning("Download already in progress")
             return False
         
-        # Get download URL
         download_url = self._get_download_url()
         if not download_url:
             logger.error("Could not retrieve download URL")
             self.status["state"] = "error"
-            self.status["error_message"] = "Could not retrieve download URL"
+            self.status["error_message"] = _t("err_no_download_url")
             return False
         
-        # Reset download state
         self.status.update({
             "state": "downloading",
             "progress": 0,
@@ -136,16 +220,13 @@ class DownloadManager:
         })
         
         self.cancel_download.clear()
-        
-        # Update queue positions for remaining queued downloads
         self._update_queue_positions()
         
         if os.path.exists(self.download_path):
             shutil.rmtree(self.download_path)
             
-        os.makedirs(self.download_path)
+        os.makedirs(self.download_path, exist_ok=True)
 
-        # Start download in a separate thread
         self.download_thread = threading.Thread(
             target=self._download_worker, 
             args=(download_url, )
@@ -155,62 +236,188 @@ class DownloadManager:
         return True
 
     def pause(self):
-        """Pause the ongoing download"""
+        """Pause the ongoing download."""
         if self.status["state"] == "downloading":
             self.pause_download.set()
             self.status["is_paused"] = True
             logger.info(f"Download paused: {self.game_prop.name}")
 
     def resume(self):
-        """Resume the paused download"""
+        """Resume the paused download."""
         if self.status["state"] == "downloading" and self.status["is_paused"]:
             self.pause_download.clear()
             self.status["is_paused"] = False
             logger.info(f"Download resumed: {self.game_prop.name}")
 
     def _download_worker(self, download_url):
-        """
-        Background worker to download the game file
-        
-        :param download_url: URL to download from
-        """
+        """Background worker to download the game file with multi-segment acceleration when possible."""
+        cpu_governor.acquire()
         try:
-            with self.session.get(download_url, stream=True, timeout=30) as response:
-                response.raise_for_status()
+            # 1. Headers. The confirmation dialog already ran a HEAD to show the
+            # game size, so reuse it; asking again costs a full connection setup
+            # per download, which for a sub-15MB ROM is a sizeable slice of the
+            # transfer. Only probe when that HEAD did not happen or came back
+            # without a length.
+            probe = self._probe
+            if not probe:
+                # Closed as soon as the headers are read: a streamed response
+                # left open holds a pooled connection (and the server-side
+                # per-IP slot) for the entire download.
+                with self.session.get(download_url, stream=True, timeout=30) as head_resp:
+                    head_resp.raise_for_status()
+                    probe = {
+                        "total_size": int(head_resp.headers.get('content-length', 0)),
+                        "accept_ranges": head_resp.headers.get('accept-ranges', '').lower() == 'bytes',
+                        # Range requests go to the already-resolved URL so each
+                        # stream skips re-walking the redirect chain.
+                        "url": head_resp.url or download_url,
+                    }
+            
+            total_size = probe["total_size"]
+            accept_ranges = probe["accept_ranges"]
+            resolved_url = probe["url"]
+            self.status["total_size"] = total_size
+            
+            dest_file = os.path.join(self.download_path, self.filename)
+            
+            # Pre-allocate file on SD card to prevent filesystem fragmentation & boost write speed
+            if total_size > 0:
+                with open(dest_file, "wb") as f:
+                    f.truncate(total_size)
+            
+            # Segmented multi-stream download threshold: files > 15MB that support Range requests
+            NUM_STREAMS = 3
+            SEGMENT_RETRIES = 2
+            use_segmented = (total_size >= 15 * 1024 * 1024 and accept_ranges)
+            
+            start_time = time.time()
+            downloaded = 0
+            
+            if use_segmented:
+                logger.info(f"Starting {NUM_STREAMS}-stream accelerated download for {self.game_prop.name} ({total_size // 1024 // 1024} MB)")
+                part_size = total_size // NUM_STREAMS
+                stream_threads = []
+                stream_errors = []
                 
-                # Get total file size
-                self.status["total_size"] = int(response.headers.get('content-length', 0))
-                    
-                with open(os.path.join(self.download_path, self.filename), 'wb') as file:
-                    start_time = time.time()
-                    downloaded = 0
-                    
-                    for chunk in response.iter_content(chunk_size=8192):
-                        # Check for cancellation
-                        if self.cancel_download.is_set():
-                            logger.info("Download cancelled")
-                            return
-                        
-                        # Check for pause
-                        if self.pause_download.is_set():
-                            while self.pause_download.is_set() and not self.cancel_download.is_set():
-                                time.sleep(0.1)  # Sleep while paused
+                def part_worker(part_idx, start_byte, end_byte):
+                    nonlocal downloaded
+                    # Resume point for this segment. A dropped connection retries
+                    # from here instead of discarding every stream's progress and
+                    # pulling the whole file again.
+                    position = start_byte
+                    for attempt in range(SEGMENT_RETRIES + 1):
+                        try:
+                            part_headers = {"Range": f"bytes={position}-{end_byte}"}
+                            with self.session.get(resolved_url, headers=part_headers, stream=True, timeout=(15, 60)) as r:
+                                r.raise_for_status()
+                                # A host that advertises accept-ranges but ignores
+                                # the header answers 200 with the whole body.
+                                # Accepting that would have every stream write the
+                                # full file at its own offset, producing a corrupt
+                                # ROM with no error raised.
+                                if r.status_code != 206:
+                                    raise RuntimeError(
+                                        f"server ignored Range request (HTTP {r.status_code})"
+                                    )
+                                with open(dest_file, "r+b") as pf:
+                                    pf.seek(position)
+                                    for chunk in r.iter_content(chunk_size=131072):
+                                        if self.cancel_download.is_set():
+                                            return
+                                        if self.pause_download.is_set():
+                                            while self.pause_download.is_set() and not self.cancel_download.is_set():
+                                                time.sleep(0.1)
+                                            if self.cancel_download.is_set():
+                                                return
+                                        if chunk:
+                                            pf.write(chunk)
+                                            position += len(chunk)
+                                            with self._download_lock:
+                                                downloaded += len(chunk)
+                                                self.status["current_size"] = downloaded
+                                                self.status["progress"] = (downloaded / total_size * 100) if total_size > 0 else 0
+                                                elapsed = time.time() - start_time
+                                                if elapsed > 0:
+                                                    self.status["download_speed"] = downloaded / elapsed
+                            # The file is pre-allocated to its full size, so a
+                            # stream that ends early leaves a hole of zeros rather
+                            # than a short file. Only a byte count catches that.
+                            if position > end_byte:
+                                return
+                            raise RuntimeError(
+                                f"segment {part_idx} truncated at {position}/{end_byte + 1}"
+                            )
+                        except Exception as err:
                             if self.cancel_download.is_set():
                                 return
-                        
-                        if chunk:
-                            file.write(chunk)
-                            downloaded += len(chunk)
-                            
-                            # Calculate progress and speed
-                            elapsed_time = time.time() - start_time
-                            self.status["current_size"] = downloaded
-                            self.status["progress"] = (downloaded / self.status["total_size"] * 100) if self.status["total_size"] > 0 else 0
-                            
-                            # Update download speed every second
-                            if elapsed_time > 0:
-                                self.status["download_speed"] = downloaded / elapsed_time
-            
+                            if attempt >= SEGMENT_RETRIES:
+                                stream_errors.append(err)
+                                logger.warning(f"Segment {part_idx} download error: {err}")
+                                return
+                            logger.warning(
+                                f"Segment {part_idx} attempt {attempt + 1} failed ({err}); "
+                                f"resuming from byte {position}"
+                            )
+                            time.sleep(0.5 * (attempt + 1))
+
+                for i in range(NUM_STREAMS):
+                    s_byte = i * part_size
+                    e_byte = (total_size - 1) if i == NUM_STREAMS - 1 else ((i + 1) * part_size - 1)
+                    t = threading.Thread(target=part_worker, args=(i, s_byte, e_byte))
+                    t.daemon = True
+                    t.start()
+                    stream_threads.append(t)
+                    
+                for t in stream_threads:
+                    t.join()
+                    
+                if self.cancel_download.is_set():
+                    logger.info("Download cancelled")
+                    return
+                    
+                if stream_errors and not self.cancel_download.is_set():
+                    logger.warning(f"Segmented download encountered error, falling back to single-stream mode...")
+                    use_segmented = False
+                elif not self.cancel_download.is_set() and total_size > 0 and downloaded != total_size:
+                    logger.warning(
+                        f"Segmented download size mismatch ({downloaded}/{total_size} bytes), "
+                        "falling back to single-stream mode..."
+                    )
+                    use_segmented = False
+
+            if not use_segmented and not self.cancel_download.is_set():
+                # High-speed single-stream download with 256KB memory buffer
+                start_time = time.time()
+                downloaded = 0
+                with self.session.get(resolved_url, stream=True, timeout=(15, 60)) as stream_resp:
+                    stream_resp.raise_for_status()
+                    if total_size == 0:
+                        total_size = int(stream_resp.headers.get('content-length', 0))
+                        self.status["total_size"] = total_size
+                    with open(dest_file, "wb") as file:
+                        for chunk in stream_resp.iter_content(chunk_size=262144):
+                            if self.cancel_download.is_set():
+                                logger.info("Download cancelled")
+                                return
+                            if self.pause_download.is_set():
+                                while self.pause_download.is_set() and not self.cancel_download.is_set():
+                                    time.sleep(0.1)
+                                if self.cancel_download.is_set():
+                                    return
+                            if chunk:
+                                file.write(chunk)
+                                downloaded += len(chunk)
+                                elapsed = time.time() - start_time
+                                self.status["current_size"] = downloaded
+                                self.status["progress"] = (downloaded / total_size * 100) if total_size > 0 else 0
+                                if elapsed > 0:
+                                    self.status["download_speed"] = downloaded / elapsed
+
+                if not self.cancel_download.is_set() and total_size > 0 and downloaded != total_size:
+                    raise RuntimeError(
+                        _t("err_incomplete_download", got=downloaded, total=total_size)
+                    )
+
             # Process the downloaded file if not cancelled
             if not self.cancel_download.is_set():
                 self.status["progress"] = 100
@@ -223,7 +430,7 @@ class DownloadManager:
                     
                     # Update status for scraping
                     self.status["state"] = "scraping"
-                    self.status["current_operation"] = "Scraping Cover Images"
+                    self.status["current_operation"] = "op_scraping_covers"
                     
                     scrapper = ScreenScraper()
                     for name in game_names_to_scrape:
@@ -250,6 +457,7 @@ class DownloadManager:
             self.status["error_message"] = str(e)
         
         finally:
+            cpu_governor.release()
             if not self.cancel_download.is_set():
                 try:
                     shutil.rmtree(self.download_path)
@@ -257,17 +465,15 @@ class DownloadManager:
                     logger.error(f"Error cleaning up download directory: {e}")
 
     def cancel(self):
-        """Cancel the ongoing download"""
+        """Cancel the ongoing download."""
         self.status['state'] = "cancelling"
         
-        # Cancel extraction/conversion if in progress
         if self.gameExtractorConverter is not None:
             try:
                 self.gameExtractorConverter.cancel()
             except Exception as e:
                 logger.error(f"Error cancelling extraction: {e}")
         
-        # Cancel download if in progress
         if self.download_thread and self.download_thread.is_alive():
             self.cancel_download.set()
             try:
@@ -275,32 +481,22 @@ class DownloadManager:
             except Exception as e:
                 logger.error(f"Error waiting for download thread: {e}")
         
-        # Clean up
         try:
             if os.path.exists(self.download_path):
                 shutil.rmtree(self.download_path)
         except Exception as e:
             logger.error(f"Error cleaning up download directory: {e}")
 
-        # Remove from the list of all managers
         if self in DownloadManager._all_managers:
             DownloadManager._all_managers.remove(self)
                 
-        # Update queue positions for remaining downloads
         self._update_queue_positions()
-        
-        # Update final status
         self.status['state'] = "cancelled"
         self.status['current_operation'] = ""
 
     @staticmethod
     def format_size(size_bytes):
-        """
-        Convert bytes to human-readable format
-        
-        :param size_bytes: Size in bytes
-        :return: Formatted size string
-        """
+        """Convert bytes to human-readable format."""
         for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
             if size_bytes < 1024.0:
                 return f"{size_bytes:.2f} {unit}"
@@ -309,12 +505,7 @@ class DownloadManager:
 
     @staticmethod
     def get_disk_space():
-        """
-        Get disk space information for the given path
-        
-        :param path: Path to check disk space
-        :return: Tuple of (total_space, free_space) in bytes
-        """
+        """Get disk space information for the given path."""
         try:
             if os.name == 'nt':  # Windows
                 import ctypes
@@ -337,9 +528,7 @@ class DownloadManager:
             return 0, 0
 
     def get_game_size_async(self):
-        """
-        Start asynchronous game size check
-        """
+        """Start asynchronous game size check."""
         if self.size_check_thread and self.size_check_thread.is_alive():
             return
             
@@ -350,17 +539,23 @@ class DownloadManager:
         self.size_check_thread.start()
 
     def _size_check_worker(self):
-        """Background worker for checking game size"""
+        """Background worker for checking game size."""
         try:
             download_url = self._get_download_url()
             if not download_url:
                 self.size_check_error = "Could not get download URL"
                 return
             
-            # Make a HEAD request to get content length
             response = self.session.head(download_url, timeout=10, allow_redirects=True)
             if response.status_code == 200:
-                self.status["total_size"] = int(response.headers.get('content-length', 0))
+                total_size = int(response.headers.get('content-length', 0))
+                self.status["total_size"] = total_size
+                if total_size > 0:
+                    self._probe = {
+                        "total_size": total_size,
+                        "accept_ranges": response.headers.get('accept-ranges', '').lower() == 'bytes',
+                        "url": response.url or download_url,
+                    }
             else:
                 self.size_check_error = f"HTTP error: {response.status_code}"
         except Exception as e:
@@ -370,12 +565,7 @@ class DownloadManager:
             self.size_check_complete.set()
 
     def wait_for_size(self, timeout=None):
-        """
-        Wait for size check to complete
-        
-        :param timeout: Maximum time to wait in seconds
-        :return: True if size check completed successfully, False otherwise
-        """
+        """Wait for size check to complete."""
         if not self.size_check_thread:
             return False
             
@@ -384,9 +574,5 @@ class DownloadManager:
     
     @classmethod
     def get_active_download_count(cls):
-        """
-        Get the number of active downloads
-        
-        :return: Number of active downloads
-        """
+        """Get the number of active downloads."""
         return sum(1 for m in cls._all_managers if m.status["state"] in ["downloading", "processing", "scraping"])

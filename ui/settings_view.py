@@ -1,0 +1,256 @@
+"""
+Settings View for EmuDrop.
+Allows changing language (Vietnamese / English) and viewing device/app information.
+"""
+
+import sdl2
+import sdl2.sdlttf
+from typing import List, Dict, Any, Tuple
+
+from ui.base_view import BaseView
+from utils.config import Config
+from utils.theme import Theme
+from utils.i18n import _t, i18n
+from utils.logger import logger
+from utils.profiler import profiler
+
+
+class SettingsView(BaseView):
+    """View for configuring application settings."""
+
+    # Single source of truth for the row order; render() builds one entry each.
+    SETTING_ROWS = ('language', 'device', 'version')
+
+    def __init__(self, renderer, font=None, bold_font=None, texture_callback=None):
+        super().__init__(renderer, font)
+        self.bold_font = bold_font if bold_font else font
+        self.selected_index = 0
+
+    @property
+    def items_count(self) -> int:
+        return len(self.SETTING_ROWS)
+
+    def handle_navigation(self, direction: int) -> None:
+        """Handle Up/Down navigation in settings list."""
+        self.selected_index = (self.selected_index + direction) % self.items_count
+
+    def handle_action(self, change_dir: int = 1) -> None:
+        """Handle Left/Right or A button action on selected setting."""
+        if self.SETTING_ROWS[self.selected_index] == 'language':
+            # Left steps backwards through the list, right/A forwards.
+            i18n.cycle_language(change_dir)
+            # Every cached glyph texture holds the previous language's text.
+            BaseView.clear_cache()
+
+    def render(self, active_downloads_count: int = 0) -> None:
+        """Render the Settings view."""
+        try:
+            # 1. Render Header
+            header_y = int(18 * Config.SCALE_Y)
+            self.render_text(
+                _t("settings_title"),
+                Config.CONTROL_MARGIN,
+                header_y,
+                color=Theme.TEXT_HIGHLIGHT,
+                center=False
+            )
+
+            # Show active downloads count if any
+            if active_downloads_count:
+                self._render_active_download_count(active_downloads_count)
+
+            # 2. Render Settings Cards / Items
+            card_start_y = int(Config.SCREEN_HEIGHT * 0.11)
+            card_w = Config.SCREEN_WIDTH - (Config.CONTROL_MARGIN * 2)
+            card_h = max(56, int(66 * Config.SCALE_Y))
+            card_spacing = max(8, int(10 * Config.SCALE_Y))
+
+            hw_info = profiler.get_hardware_status()
+            hw_extra = ""
+            if hw_info["temp"] != "N/A":
+                hw_extra = f" • {hw_info['temp']}"
+            if hw_info["freq"] != "N/A":
+                hw_extra += f" ({hw_info['freq']})"
+
+            settings_data = [
+                {
+                    "title": _t("setting_language"),
+                    "desc": _t("setting_language_desc"),
+                    "value": f"◄  {_t('lang_vi') if i18n.current_language == 'vi' else _t('lang_en')}  ►",
+                    "is_interactive": True,
+                    "accent_val": True,
+                },
+                {
+                    "title": _t("setting_device"),
+                    "desc": f"Allwinner A133P / {Config.SCREEN_WIDTH}x{Config.SCREEN_HEIGHT}{hw_extra}",
+                    "value": "TrimUI Brick (4:3)" if Config.SCREEN_WIDTH / Config.SCREEN_HEIGHT < 1.5 else "TrimUI Smart Pro (16:9)",
+                    "is_interactive": False,
+                    "accent_val": False,
+                },
+                {
+                    "title": _t("setting_version"),
+                    "desc": _t("app_tagline"),
+                    "value": "v2.1 (NextUI ARM64)",
+                    "is_interactive": False,
+                    "accent_val": False,
+                }
+            ]
+
+            for idx, item in enumerate(settings_data):
+                is_selected = (idx == self.selected_index)
+                cur_y = card_start_y + idx * (card_h + card_spacing)
+
+                card_rect = sdl2.SDL_Rect(
+                    int(Config.CONTROL_MARGIN),
+                    int(cur_y),
+                    int(card_w),
+                    int(card_h)
+                )
+
+                # Draw Card Background
+                sdl2.SDL_SetRenderDrawBlendMode(self.renderer, sdl2.SDL_BLENDMODE_BLEND)
+                if is_selected:
+                    # Highlighted selection card
+                    sdl2.SDL_SetRenderDrawColor(self.renderer, 45, 75, 115, 230)
+                    sdl2.SDL_RenderFillRect(self.renderer, card_rect)
+                    
+                    # Highlight border
+                    sdl2.SDL_SetRenderDrawColor(self.renderer, 90, 160, 255, 255)
+                    sdl2.SDL_RenderDrawRect(self.renderer, card_rect)
+                    
+                    # Subtle inner glow line on left
+                    left_bar = sdl2.SDL_Rect(int(Config.CONTROL_MARGIN), int(cur_y), 6, int(card_h))
+                    sdl2.SDL_SetRenderDrawColor(self.renderer, 0, 210, 255, 255)
+                    sdl2.SDL_RenderFillRect(self.renderer, left_bar)
+                else:
+                    # Normal card
+                    sdl2.SDL_SetRenderDrawColor(self.renderer, 30, 34, 42, 200)
+                    sdl2.SDL_RenderFillRect(self.renderer, card_rect)
+                    
+                    sdl2.SDL_SetRenderDrawColor(self.renderer, 60, 65, 75, 180)
+                    sdl2.SDL_RenderDrawRect(self.renderer, card_rect)
+
+                # Draw Setting Title
+                title_x = Config.CONTROL_MARGIN + max(16, int(22 * Config.SCALE_X))
+                title_y = cur_y + max(8, int(11 * Config.SCALE_Y))
+                self.render_text(
+                    item["title"],
+                    title_x,
+                    title_y,
+                    color=Theme.TEXT_HIGHLIGHT if is_selected else Theme.TEXT_PRIMARY,
+                    center=False,
+                    font=self.card_font
+                )
+
+                # Draw Setting Description (sub-text)
+                desc_y = title_y + max(22, int(26 * Config.SCALE_Y))
+                self.render_text(
+                    item["desc"],
+                    title_x,
+                    desc_y,
+                    color=Theme.TEXT_SECONDARY,
+                    center=False,
+                    font=self.control_font
+                )
+
+                # Draw Value on the Right Side of Card
+                val_text = item["value"]
+                val_w, _ = self._get_text_size(val_text, font=self.card_font)
+                right_pad = max(20, int(28 * Config.SCALE_X))
+                val_x = Config.SCREEN_WIDTH - Config.CONTROL_MARGIN - val_w - right_pad
+                val_y = cur_y + (card_h - Config.FONT_LARGE_SIZE) // 2
+                
+                val_color = (0, 230, 255) if (is_selected and item["accent_val"]) else Theme.TEXT_ACCENT if item["accent_val"] else Theme.TEXT_PRIMARY
+                self.render_text(
+                    val_text,
+                    val_x,
+                    val_y,
+                    color=val_color,
+                    center=False,
+                    font=self.card_font
+                )
+
+            # 3. Hint below cards
+            hint_y = card_start_y + len(settings_data) * (card_h + card_spacing) + int(8 * Config.SCALE_Y)
+            self.render_text(
+                _t("hint_change"),
+                Config.SCREEN_WIDTH // 2,
+                hint_y,
+                color=Theme.TEXT_SECONDARY,
+                center=True,
+                font=self.control_font
+            )
+
+            # 4. Render Credits & Attribution Box
+            credits_y = hint_y + max(20, int(26 * Config.SCALE_Y))
+            credits_h = max(105, int(120 * Config.SCALE_Y))
+            credits_rect = sdl2.SDL_Rect(
+                int(Config.CONTROL_MARGIN),
+                int(credits_y),
+                int(card_w),
+                int(credits_h)
+            )
+
+            # Glassmorphic dark container
+            sdl2.SDL_SetRenderDrawBlendMode(self.renderer, sdl2.SDL_BLENDMODE_BLEND)
+            sdl2.SDL_SetRenderDrawColor(self.renderer, 24, 28, 36, 220)
+            sdl2.SDL_RenderFillRect(self.renderer, credits_rect)
+
+            # Outer border with subtle cyan/purple tint
+            sdl2.SDL_SetRenderDrawColor(self.renderer, 70, 85, 115, 200)
+            sdl2.SDL_RenderDrawRect(self.renderer, credits_rect)
+
+            # Left accent stripe
+            accent_bar = sdl2.SDL_Rect(int(Config.CONTROL_MARGIN), int(credits_y), 5, int(credits_h))
+            sdl2.SDL_SetRenderDrawColor(self.renderer, 0, 200, 240, 255)
+            sdl2.SDL_RenderFillRect(self.renderer, accent_bar)
+
+            # Text items inside Credits Box
+            box_pad_x = Config.CONTROL_MARGIN + max(18, int(24 * Config.SCALE_X))
+            line_start_y = credits_y + max(12, int(16 * Config.SCALE_Y))
+            line_spacing = max(24, int(30 * Config.SCALE_Y))
+
+            # Header
+            self.render_text(
+                _t("credits_box_title"),
+                box_pad_x,
+                line_start_y,
+                color=(0, 225, 255),
+                center=False,
+                font=self.card_font
+            )
+
+            # Mod / Developer Info
+            self.render_text(
+                _t("credits_mod_by"),
+                box_pad_x,
+                line_start_y + line_spacing,
+                color=Theme.TEXT_PRIMARY,
+                center=False,
+                font=self.font
+            )
+
+            # Original Project Attribution
+            self.render_text(
+                _t("credits_base_on"),
+                box_pad_x,
+                line_start_y + line_spacing * 2,
+                color=(255, 210, 100),
+                center=False,
+                font=self.control_font
+            )
+
+            # 5. Render Bottom Control Guides
+            controls = {
+                'left': [
+                    "list-controls.png",  # Move
+                    "select.png",         # Change
+                ],
+                'right': [
+                    "back.png"            # Back
+                ]
+            }
+            self.render_control_guides(controls)
+
+        except Exception as e:
+            logger.error(f"Error rendering settings view: {e}", exc_info=True)

@@ -169,7 +169,7 @@
   },
   {
     "id": "SEGACD",
-    "name": "Mega CD)",
+    "name": "Mega CD",
     "image": "SEGACD.png",
     "isExtractable": true,
     "canBeRenamed": true

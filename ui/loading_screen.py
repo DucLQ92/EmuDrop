@@ -23,25 +23,9 @@ class LoadingScreen(BaseView):
         self.width = width
         self.height = height
         if not self.font:
-            self._load_font()
+            self.font = self._load_font(int(36 * Config.SCALE_FACTOR))
         self.last_time = time.time()
         self.animation_angle = 0
-
-    def _load_font(self):
-        """Load the font with the correct scaled size"""
-        font_path = Config.get_font_path()
-        if font_path:
-            try:
-                # Use a larger font size for the loading screen
-                font_size = int(36 * Config.SCALE_FACTOR)
-                self.font = sdl2.sdlttf.TTF_OpenFont(font_path.encode('utf-8'), font_size)
-                if self.font:
-                    logger.info(f"Loading screen font loaded: {font_path}")
-                    return
-            except Exception as e:
-                logger.warning(f"Failed to load font {font_path}: {e}")
-        
-        logger.error("No font could be loaded for loading screen")
 
     def render(self, progress: float, status_text: str = "Loading..."):
         """Render a modern loading screen with animations"""
@@ -171,4 +155,3 @@ class LoadingScreen(BaseView):
                 height
             )
             sdl2.SDL_RenderCopy(self.renderer, texture, None, dst_rect)
-            sdl2.SDL_DestroyTexture(texture)
