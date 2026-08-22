@@ -137,7 +137,12 @@ if [ -f "/proc/sys/net/ipv4/tcp_available_congestion_control" ]; then
     fi
 fi
 
-# Launch app (OTA updates disabled for custom build)
+# Catalogue update only. app_ota.sh stays disabled so an upstream app release
+# never overwrites this modified build.
+echo "Running database update check..." >> "$LOG_FILE"
+./db_ota.sh >> "$LOG_FILE" 2>&1
+
+# Launch app
 echo "Launching EmuDrop binary..." >> "$LOG_FILE"
 ./EmuDrop >> "$LOG_FILE" 2>&1
 EXIT_CODE=$?

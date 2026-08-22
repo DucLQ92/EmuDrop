@@ -74,7 +74,7 @@ If you like this project, consider supporting me on Buy Me a Coffee:
 - 📺 Game Preview: View game information and images
 - 🎯 Progress Tracking: Visual feedback for downloads
 - 💾 Multi-format Support: Handles various ROM formats and compression
-- 🔄 Auto Updates: Built-in OTA updates for seamless app maintenance
+- 🔄 Auto Updates: The game catalogue is refreshed from the upstream project on launch. App updates are deliberately not applied, so this modified build is never replaced.
 - 📚 Sources: Game ROMs from different sources
 - 🔒 Download Queue: Manage multiple downloads simultaneously
 - 🗑️ Cache Management: Automatic cleanup of temporary files

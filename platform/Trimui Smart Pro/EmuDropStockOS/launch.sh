@@ -91,6 +91,10 @@ if [ -f "/proc/sys/net/ipv4/tcp_available_congestion_control" ]; then
     fi
 fi
 
+# Catalogue update only. app_ota.sh stays disabled so an upstream app release
+# never overwrites this modified build.
+sh db_ota.sh
+
 echo 1 > /tmp/stay_awake #keep screen awake
 
 export ROMS_DIR="/mnt/SDCARD/Roms/"

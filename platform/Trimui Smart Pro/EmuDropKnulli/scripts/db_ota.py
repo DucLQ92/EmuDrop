@@ -51,6 +51,17 @@ def download_latest_release(version):
         print(f"Error downloading release: {e}")
         return False
 
+def is_valid_db(path):
+    """A truncated transfer or an error page must never replace the catalogue."""
+    try:
+        p = Path(path)
+        if not p.is_file() or p.stat().st_size < 1024 * 1024:
+            return False
+        with open(p, 'rb') as f:
+            return f.read(15) == b'SQLite format 3'
+    except Exception:
+        return False
+
 def clean_local_files():
     db_path = Path("assets") / DB_FILE_NAME
     if db_path.exists():
@@ -93,7 +104,7 @@ def run(infoScreen):
         infoScreen.show_message(f"New update available: {latest_version}", 0.5)
         infoScreen.show_message("Please wait, this may take a few moments...")
         
-        if download_latest_release(latest_version):
+        if download_latest_release(latest_version) and is_valid_db(DB_FILE_NAME):
             clean_local_files()
             move_db_file()
             update_version_file(latest_version)
