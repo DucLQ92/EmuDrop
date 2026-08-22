@@ -112,7 +112,6 @@ class GamesExtractorConverter:
         os.makedirs(output_path, exist_ok=True)
 
         game_names_to_scrape = []
-        valid_files = [f for f in files if not f.endswith(('.nfo', '.html', '.htm'))]
            
         def _normal_game_out():
             # Take what is on disk now, not the archive's original listing. The
@@ -122,7 +121,7 @@ class GamesExtractorConverter:
             current = sorted(
                 f for f in os.listdir(files_path)
                 if os.path.isfile(os.path.join(files_path, f))
-                and not f.endswith(('.nfo', '.html', '.htm'))
+                and os.path.splitext(f)[1].lower() not in self.NON_GAME_EXTENSIONS
             )
             
             # An .ecm is an intermediate. Drop it once its decoded form exists;
@@ -284,7 +283,10 @@ class GamesExtractorConverter:
                     if os.path.splitext(n)[1].lower() not in self.DISC_EXTENSIONS
                 ]
                 game_names_to_scrape.append(group)
-        return list(set(game_names_to_scrape))
+
+        names = list(set(game_names_to_scrape))
+        self._install_artwork(files_path, names)
+        return names
 
     # Disc images carry no subchannel data, and PAL PlayStation discs from the
     # LibCrypt era hide their anti-piracy key there. Without it the game loads,
@@ -298,6 +300,60 @@ class GamesExtractorConverter:
         """The SLES-02965 style id printed on the disc, if the name carries one."""
         match = re.search(r'([A-Za-z]{4})[-_ ]?(\d{5})', name)
         return f"{match.group(1).upper()}-{match.group(2)}" if match else None
+
+    # Releases bundle scans, scene notes and checksums next to the ROM. The
+    # frontend lists whatever it finds in a ROM folder, so anything shipped
+    # along with the game turns into a bogus menu entry.
+    NON_GAME_EXTENSIONS = (
+        '.nfo', '.html', '.htm', '.txt', '.url', '.diz', '.sfv', '.md5', '.sha1',
+        '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.ico', '.pdf',
+    )
+    IMAGE_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.bmp', '.webp')
+    # Ordered by preference. An "icon" is too small and an "ingame" shot is a
+    # screenshot, so neither stands in for box art.
+    COVER_HINTS = ('cover', 'box', 'front')
+
+    def _install_artwork(self, files_path, rom_names):
+        """Use box art shipped inside the archive instead of scraping for it.
+
+        Written to the path the scraper would use, which makes its own
+        "already scraped" check skip the network round trip.
+        """
+        template = os.environ.get('IMGS_DIR')
+        if not template or not rom_names:
+            return
+
+        images = [f for f in os.listdir(files_path)
+                  if os.path.isfile(os.path.join(files_path, f))
+                  and os.path.splitext(f)[1].lower() in self.IMAGE_EXTENSIONS]
+        if not images:
+            return
+
+        def preference(name):
+            lowered = name.lower()
+            for index, hint in enumerate(self.COVER_HINTS):
+                if hint in lowered:
+                    return index
+            return len(self.COVER_HINTS)
+
+        images.sort(key=lambda n: (preference(n), n.lower()))
+        if preference(images[0]) == len(self.COVER_HINTS):
+            return  # nothing that reads as box art; let the scraper do its job
+
+        source = os.path.join(files_path, images[0])
+        system = Config.SYSTEMS_MAPPING.get(self.platform_id, self.platform_id)
+        for name in rom_names:
+            target = template.format(SYSTEM=system, IMAGE_NAME=os.path.splitext(name)[0])
+            if os.path.exists(target):
+                continue
+            try:
+                os.makedirs(os.path.dirname(target), exist_ok=True)
+                from PIL import Image
+                with Image.open(source) as art:
+                    art.convert('RGBA').save(target)
+                logger.info(f"Used artwork '{images[0]}' bundled with the release for {name}")
+            except Exception as e:
+                logger.warning(f"Could not use the bundled artwork for {name}: {e}")
 
     # NextUI lists every file in a ROM folder, so a disc image plus its .sbi
     # shows up as two games. A folder holding an .m3u named after itself is
