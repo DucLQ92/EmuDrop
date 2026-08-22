@@ -1,6 +1,6 @@
 {
   "name": "EmuDrop",
-  "version": "v2.1.6.6",
+  "version": "v2.1.6.5",
   "type": "TOOL",
   "description": "Trình tải ROM cho máy chơi game cầm tay: duyệt theo hệ máy, tìm kiếm và tải game ngay trên máy. Bản Việt hóa dựa trên EmuDrop của ahmadteeb, đã tắt tự cập nhật để Pak Store lo việc đó.",
   "author": "ahmadteeb",
@@ -18,7 +18,6 @@
     "tg5050"
   ],
   "changelog": {
-    "v2.1.6.6": "Không còn chép file rác vào thư mục game. Nhiều bản phát hành (rõ nhất là NDS) đóng kèm ảnh Cover/Icon/InGame, file ghi chú và mã kiểm tra trong gói nén; trước đây chúng bị chép ra thẻ và NextUI hiện mỗi file thành một mục game. Đổi lại, nếu trong gói có sẵn ảnh bìa thì app dùng luôn ảnh đó làm ảnh bìa cho game (tự đổi sang PNG), khỏi phải tải lại từ ScreenScraper.",
     "v2.1.6.5": "Game đĩa nhiều phần nay gom vào một thư mục riêng kèm file .m3u, nên menu chỉ hiện đúng một mục thay vì mỗi đĩa một mục, và đổi đĩa trong game dùng luôn file đó. Cách này cũng giấu file .sbi đi — trước đây NextUI liệt kê mọi file trong thư mục ROM nên game có kèm .sbi bị hiện thành hai mục. Ảnh bìa được đặt theo tên thư mục cho khớp. Game một đĩa và không có .sbi vẫn để nguyên như cũ.",
     "v2.1.6.4": "Tự động kèm dữ liệu chống copy (.sbi) cho game PlayStation bản PAL. Các đĩa PS1 châu Âu đời cuối dùng cơ chế LibCrypt, giấu khoá chống copy ở rãnh phụ của đĩa mà file ROM tải về không có, khiến game nạp xong là treo màn hình đen (Final Fantasy IX, Dino Crisis, Crash Team Racing, Medievil 2, Parasite Eve II...). App nay đóng gói sẵn 91 file .sbi và tự đặt đúng file bên cạnh game sau khi tải, nhận diện theo mã số đĩa. Nguồn: opsxcq/psx-cue-sbi-collection.",
     "v2.1.6.3": "Sửa tên thư mục ROM cho khớp với NextUI. Trước đây 14 hệ máy được đặt sai mã hệ máy trong ngoặc (ví dụ Sega 32X tạo thư mục '(SEGA32X)' trong khi NextUI dùng '(32X)'), khiến game tải về nằm trong thư mục mà máy không tìm ra emulator để chạy. Cùng với đó, 3 hệ máy khác bị đặt tên lệch nên sinh ra thư mục trùng lặp trong menu. Các hệ được sửa: Sega 32X, Master System, Atari 2600/5200/7800, Amiga, Commodore PET/Plus4/VIC20, Pokémon mini, Arcade FBNeo, MSX2, ColecoVision SGM, TurboGrafx-CD.",
