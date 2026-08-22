@@ -64,6 +64,7 @@ package-nextui: build-binary
 	@cp -rf "platform/Trimui Smart Pro/EmuDropNextUI/." "$(RELEASE_DIR)/EmuDrop.pak/"
 	@cp -rf "assets/images/." "$(RELEASE_DIR)/EmuDrop.pak/assets/images/"
 	@cp -rf "assets/fonts/." "$(RELEASE_DIR)/EmuDrop.pak/assets/fonts/"
+	@mkdir -p "$(RELEASE_DIR)/EmuDrop.pak/assets/sbi" && cp -rf "assets/sbi/." "$(RELEASE_DIR)/EmuDrop.pak/assets/sbi/"
 	@cp -f "dist/EmuDrop" "$(RELEASE_DIR)/EmuDrop.pak/EmuDrop"
 	@chmod +x "$(RELEASE_DIR)/EmuDrop.pak/EmuDrop" "$(RELEASE_DIR)/EmuDrop.pak/launch.sh" "$(RELEASE_DIR)/EmuDrop.pak/app_ota.sh" "$(RELEASE_DIR)/EmuDrop.pak/db_ota.sh"
 	@chmod +x "$(RELEASE_DIR)/EmuDrop.pak"/assets/executables/* 2>/dev/null || true
@@ -81,6 +82,7 @@ package-crossmix: build-binary
 	@cp -rf "platform/Trimui Smart Pro/EmuDrop/." "$(RELEASE_DIR)/CrossMix/EmuDrop/"
 	@cp -rf "assets/images/." "$(RELEASE_DIR)/CrossMix/EmuDrop/assets/images/"
 	@cp -rf "assets/fonts/." "$(RELEASE_DIR)/CrossMix/EmuDrop/assets/fonts/"
+	@mkdir -p "$(RELEASE_DIR)/CrossMix/EmuDrop/assets/sbi" && cp -rf "assets/sbi/." "$(RELEASE_DIR)/CrossMix/EmuDrop/assets/sbi/"
 	@cp -f "dist/EmuDrop" "$(RELEASE_DIR)/CrossMix/EmuDrop/EmuDrop"
 	@chmod +x "$(RELEASE_DIR)/CrossMix/EmuDrop/EmuDrop" "$(RELEASE_DIR)/CrossMix/EmuDrop/launch.sh" "$(RELEASE_DIR)/CrossMix/EmuDrop/app_ota.sh" "$(RELEASE_DIR)/CrossMix/EmuDrop/db_ota.sh"
 	@chmod +x "$(RELEASE_DIR)/CrossMix/EmuDrop"/assets/executables/* 2>/dev/null || true
@@ -93,6 +95,7 @@ package-stock: build-binary
 	@cp -rf "platform/Trimui Smart Pro/EmuDropStockOS/." "$(RELEASE_DIR)/StockOS/EmuDrop/"
 	@cp -rf "assets/images/." "$(RELEASE_DIR)/StockOS/EmuDrop/assets/images/"
 	@cp -rf "assets/fonts/." "$(RELEASE_DIR)/StockOS/EmuDrop/assets/fonts/"
+	@mkdir -p "$(RELEASE_DIR)/StockOS/EmuDrop/assets/sbi" && cp -rf "assets/sbi/." "$(RELEASE_DIR)/StockOS/EmuDrop/assets/sbi/"
 	@cp -f "dist/EmuDrop" "$(RELEASE_DIR)/StockOS/EmuDrop/EmuDrop"
 	@chmod +x "$(RELEASE_DIR)/StockOS/EmuDrop/EmuDrop" "$(RELEASE_DIR)/StockOS/EmuDrop/launch.sh" "$(RELEASE_DIR)/StockOS/EmuDrop/app_ota.sh" "$(RELEASE_DIR)/StockOS/EmuDrop/db_ota.sh"
 	@chmod +x "$(RELEASE_DIR)/StockOS/EmuDrop"/assets/executables/* 2>/dev/null || true
@@ -105,6 +108,7 @@ package-knulli: build-binary
 	@cp -rf "platform/Trimui Smart Pro/EmuDropKnulli/." "$(RELEASE_DIR)/Knulli/EmuDrop/"
 	@cp -rf "assets/images/." "$(RELEASE_DIR)/Knulli/EmuDrop/assets/images/"
 	@cp -rf "assets/fonts/." "$(RELEASE_DIR)/Knulli/EmuDrop/assets/fonts/"
+	@mkdir -p "$(RELEASE_DIR)/Knulli/EmuDrop/assets/sbi" && cp -rf "assets/sbi/." "$(RELEASE_DIR)/Knulli/EmuDrop/assets/sbi/"
 	@cp -f "dist/EmuDrop" "$(RELEASE_DIR)/Knulli/EmuDrop/EmuDrop"
 	@chmod +x "$(RELEASE_DIR)/Knulli/EmuDrop/EmuDrop" "$(RELEASE_DIR)/Knulli/EmuDrop/EmuDrop.pygame"
 	@chmod +x "$(RELEASE_DIR)/Knulli/EmuDrop"/assets/executables/* 2>/dev/null || true

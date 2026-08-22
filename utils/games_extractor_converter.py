@@ -274,7 +274,58 @@ class GamesExtractorConverter:
                     os.path.join(output_path, file),
                     os.path.join(self.rom_path, file)
                 )
+            self._install_subchannel(output_files)
         return list(set(game_names_to_scrape))
+
+    # Disc images carry no subchannel data, and PAL PlayStation discs from the
+    # LibCrypt era hide their anti-piracy key there. Without it the game loads,
+    # runs, and then sits on a black screen. The missing bytes ship with the app
+    # as .sbi files, which the emulator reads from beside the disc image.
+    SUBCHANNEL_PLATFORMS = ('PS',)
+    DISC_EXTENSIONS = ('.chd', '.cue', '.bin', '.img', '.iso', '.pbp')
+
+    @staticmethod
+    def _disc_serial(name):
+        """The SLES-02965 style id printed on the disc, if the name carries one."""
+        match = re.search(r'([A-Za-z]{4})[-_ ]?(\d{5})', name)
+        return f"{match.group(1).upper()}-{match.group(2)}" if match else None
+
+    def _install_subchannel(self, rom_files):
+        """Place the matching .sbi next to any disc image that needs one."""
+        if self.platform_id not in self.SUBCHANNEL_PLATFORMS:
+            return
+
+        sbi_dir = os.path.join(Config.ASSETS_DIR, 'sbi')
+        if not os.path.isdir(sbi_dir):
+            return
+
+        # Match on the disc serial: it survives the naming differences between
+        # sources, where the same disc may be "Final Fantasy IX (E) (Disc 1)"
+        # or "Final Fantasy IX (E)_(Disc_1)".
+        by_serial = {}
+        for entry in os.listdir(sbi_dir):
+            if not entry.lower().endswith('.sbi'):
+                continue
+            serial = self._disc_serial(entry)
+            if serial:
+                by_serial[serial] = entry
+
+        for rom in rom_files:
+            base, ext = os.path.splitext(rom)
+            if ext.lower() not in self.DISC_EXTENSIONS:
+                continue
+            serial = self._disc_serial(base)
+            source = by_serial.get(serial) if serial else None
+            if not source:
+                continue
+            try:
+                shutil.copyfile(
+                    os.path.join(sbi_dir, source),
+                    os.path.join(self.rom_path, f"{base}.sbi")
+                )
+                logger.info(f"Installed subchannel data {source} for {rom}")
+            except Exception as e:
+                logger.warning(f"Could not install subchannel data for {rom}: {e}")
                 
     def scan_folder(self, subfolder):
         # Handle nested folders
