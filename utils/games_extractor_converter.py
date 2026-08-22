@@ -275,6 +275,15 @@ class GamesExtractorConverter:
                     os.path.join(self.rom_path, file)
                 )
             self._install_subchannel(output_files)
+            group = self._group_discs(output_files)
+            if group:
+                # The folder is what the menu shows now, so the cover art has to
+                # be fetched under its name instead of each disc's.
+                game_names_to_scrape = [
+                    n for n in game_names_to_scrape
+                    if os.path.splitext(n)[1].lower() not in self.DISC_EXTENSIONS
+                ]
+                game_names_to_scrape.append(group)
         return list(set(game_names_to_scrape))
 
     # Disc images carry no subchannel data, and PAL PlayStation discs from the
@@ -289,6 +298,75 @@ class GamesExtractorConverter:
         """The SLES-02965 style id printed on the disc, if the name carries one."""
         match = re.search(r'([A-Za-z]{4})[-_ ]?(\d{5})', name)
         return f"{match.group(1).upper()}-{match.group(2)}" if match else None
+
+    # NextUI lists every file in a ROM folder, so a disc image plus its .sbi
+    # shows up as two games. A folder holding an .m3u named after itself is
+    # launched directly instead of being browsed into, which collapses a whole
+    # multi-disc set - and anything sitting beside it - into one menu entry.
+    DISC_GROUP_PLATFORMS = ('PS', 'SEGACD', 'SATURN', 'PCECD', 'DC', 'PANASONIC', 'PCFX', 'NAOMI')
+    DISC_NUMBER_RE = re.compile(r'[\(\[][\s_]*(?:disc|disk|cd)[\s_]*(\d+)', re.I)
+
+    @classmethod
+    def _disc_group_name(cls, base):
+        """Name shared by every disc of one game.
+
+        'Final Fantasy IX (E) (Disc 1) [SLES-02965]' -> 'Final Fantasy IX (E)'
+        """
+        name = re.sub(r'[\(\[][\s_]*(?:disc|disk|cd)[\s_]*\d+(?:[\s_]*of[\s_]*\d+)?[\s_]*[\)\]]',
+                      '', base, flags=re.I)
+        name = re.sub(r'[\(\[][\s_]*[A-Za-z]{4}[-_ ]?\d{5}[\s_]*[\)\]]', '', name)
+        name = re.sub(r'[\s_.\-]+$', '', name.replace('_', ' '))
+        return re.sub(r'\s{2,}', ' ', name).strip() or base
+
+    def _group_discs(self, rom_files):
+        """Move disc images into a per-game folder with an .m3u. Returns its name."""
+        if self.platform_id not in self.DISC_GROUP_PLATFORMS:
+            return None
+
+        discs = [f for f in rom_files
+                 if os.path.splitext(f)[1].lower() in self.DISC_EXTENSIONS]
+        if not discs:
+            return None
+
+        base = os.path.splitext(discs[0])[0]
+        # Only worth a folder when there is something to collapse: a disc that is
+        # part of a set, or one carrying a companion .sbi that would show up as a
+        # second entry.
+        has_sbi = any(
+            os.path.exists(os.path.join(self.rom_path, f"{os.path.splitext(d)[0]}.sbi"))
+            for d in discs
+        )
+        if not self.DISC_NUMBER_RE.search(base) and not has_sbi:
+            return None
+
+        group = self._disc_group_name(base)
+        folder = os.path.join(self.rom_path, group)
+        try:
+            os.makedirs(folder, exist_ok=True)
+            for disc in discs:
+                stem = os.path.splitext(disc)[0]
+                for name in (disc, f"{stem}.sbi"):
+                    source = os.path.join(self.rom_path, name)
+                    if os.path.exists(source):
+                        os.replace(source, os.path.join(folder, name))
+
+            # Rebuilt from the folder each time, so a disc downloaded later joins
+            # the set that is already there.
+            present = [f for f in os.listdir(folder)
+                       if os.path.splitext(f)[1].lower() in self.DISC_EXTENSIONS]
+            def disc_number(name):
+                found = self.DISC_NUMBER_RE.search(name)
+                return int(found.group(1)) if found else 0
+            present.sort(key=lambda n: (disc_number(n), n.lower()))
+
+            with open(os.path.join(folder, f"{group}.m3u"), 'w', encoding='utf-8') as playlist:
+                playlist.write("\n".join(present) + "\n")
+
+            logger.info(f"Grouped {len(present)} disc(s) under '{group}' with an m3u playlist")
+            return group
+        except Exception as e:
+            logger.warning(f"Could not group discs for '{group}': {e}")
+            return None
 
     def _install_subchannel(self, rom_files):
         """Place the matching .sbi next to any disc image that needs one."""

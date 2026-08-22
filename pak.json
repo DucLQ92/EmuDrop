@@ -1,6 +1,6 @@
 {
   "name": "EmuDrop",
-  "version": "v2.1.6.4",
+  "version": "v2.1.6.5",
   "type": "TOOL",
   "description": "Trình tải ROM cho máy chơi game cầm tay: duyệt theo hệ máy, tìm kiếm và tải game ngay trên máy. Bản Việt hóa dựa trên EmuDrop của ahmadteeb, đã tắt tự cập nhật để Pak Store lo việc đó.",
   "author": "ahmadteeb",
@@ -18,6 +18,7 @@
     "tg5050"
   ],
   "changelog": {
+    "v2.1.6.5": "Game đĩa nhiều phần nay gom vào một thư mục riêng kèm file .m3u, nên menu chỉ hiện đúng một mục thay vì mỗi đĩa một mục, và đổi đĩa trong game dùng luôn file đó. Cách này cũng giấu file .sbi đi — trước đây NextUI liệt kê mọi file trong thư mục ROM nên game có kèm .sbi bị hiện thành hai mục. Ảnh bìa được đặt theo tên thư mục cho khớp. Game một đĩa và không có .sbi vẫn để nguyên như cũ.",
     "v2.1.6.4": "Tự động kèm dữ liệu chống copy (.sbi) cho game PlayStation bản PAL. Các đĩa PS1 châu Âu đời cuối dùng cơ chế LibCrypt, giấu khoá chống copy ở rãnh phụ của đĩa mà file ROM tải về không có, khiến game nạp xong là treo màn hình đen (Final Fantasy IX, Dino Crisis, Crash Team Racing, Medievil 2, Parasite Eve II...). App nay đóng gói sẵn 91 file .sbi và tự đặt đúng file bên cạnh game sau khi tải, nhận diện theo mã số đĩa. Nguồn: opsxcq/psx-cue-sbi-collection.",
     "v2.1.6.3": "Sửa tên thư mục ROM cho khớp với NextUI. Trước đây 14 hệ máy được đặt sai mã hệ máy trong ngoặc (ví dụ Sega 32X tạo thư mục '(SEGA32X)' trong khi NextUI dùng '(32X)'), khiến game tải về nằm trong thư mục mà máy không tìm ra emulator để chạy. Cùng với đó, 3 hệ máy khác bị đặt tên lệch nên sinh ra thư mục trùng lặp trong menu. Các hệ được sửa: Sega 32X, Master System, Atari 2600/5200/7800, Amiga, Commodore PET/Plus4/VIC20, Pokémon mini, Arcade FBNeo, MSX2, ColecoVision SGM, TurboGrafx-CD.",
     "v2.1.6.2": "Sửa lỗi game PS1 tải về ra file .ecm không chạy được: nay tự tạo cue sheet và chuyển sang CHD. Sửa 1.861 game bị gán sai hệ máy trong danh mục (61% mục NES thực ra là game SNES nên tải về vào nhầm thư mục). Cài đặt ngôn ngữ nay lưu được sau khi thoát app, và dịch nốt các chữ còn sót tiếng Anh. Tải nhanh và bền hơn: bỏ một lượt kết nối thừa mỗi lần tải, mất mạng giữa chừng thì nối tiếp thay vì tải lại từ đầu, tắt WiFi power save và nâng xung CPU trong lúc tải/giải nén rồi trả lại như cũ khi thoát. Sửa lỗi tải 3 luồng có thể tạo ra file ROM hỏng mà vẫn báo thành công. Khôi phục cập nhật danh mục game từ dự án gốc (app vẫn không tự cập nhật, việc đó để Pak Store lo).",
