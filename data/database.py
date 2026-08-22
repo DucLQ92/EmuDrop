@@ -1,6 +1,7 @@
 import sqlite3
 import os
 from utils.config import Config
+from data.catalog_repair import repair as repair_catalog
 import logging
 
 logger = logging.getLogger(__name__)
@@ -9,7 +10,13 @@ class Database:
     def __init__(self) -> None:
         """Initialize database connection"""
         try:
-            self.connection = sqlite3.connect(os.path.join(Config.ASSETS_DIR, 'catalog.db'))
+            db_path = os.path.join(Config.ASSETS_DIR, 'catalog.db')
+            # Runs once per catalogue: the shipped data files a lot of SNES
+            # games under NES, which sends the download to a folder the
+            # emulator does not read.
+            repair_catalog(db_path)
+            
+            self.connection = sqlite3.connect(db_path)
             self.connection.row_factory = sqlite3.Row
             self.cursor = self.connection.cursor()
             self.cursor.execute('PRAGMA journal_mode = OFF')

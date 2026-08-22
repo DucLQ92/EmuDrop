@@ -115,8 +115,28 @@ class GamesExtractorConverter:
         valid_files = [f for f in files if not f.endswith(('.nfo', '.html', '.htm'))]
            
         def _normal_game_out():
-            rename = len(valid_files) == 1
-            for file in valid_files:
+            # Take what is on disk now, not the archive's original listing. The
+            # conversion steps write their results into files_path, and moving
+            # the original names instead shipped the raw .ecm to the ROM folder
+            # while the decoded .bin sat next to it, unused.
+            current = sorted(
+                f for f in os.listdir(files_path)
+                if os.path.isfile(os.path.join(files_path, f))
+                and not f.endswith(('.nfo', '.html', '.htm'))
+            )
+            
+            # An .ecm is an intermediate. Drop it once its decoded form exists;
+            # no emulator reads .ecm, so shipping one is never the right answer.
+            decoded = {
+                self._trim_file_name(f) for f in current
+                if not f.lower().endswith('.ecm')
+            }
+            out_files = [
+                f for f in current
+                if not (f.lower().endswith('.ecm') and self._trim_file_name(f) in decoded)
+            ] or current
+            
+            for file in out_files:
                 game_name = self._trim_file_name(file)
                 
                 # temp commented
@@ -206,11 +226,37 @@ class GamesExtractorConverter:
                         os.rename(os.path.join(files_path, 'temp.bin'), os.path.join(files_path, new_file_name))
     
                         
+            # Releases that ship a bare .ecm (or a bare .bin) carry no cue sheet,
+            # and chdman cannot build a CHD without one. Write the standard
+            # single-track PS1 sheet so the disc still converts instead of the
+            # untouched intermediate being handed to the emulator.
+            synthesized_cue = False
+            if not any(f.lower().endswith(('.cue', '.gdi')) for f in os.listdir(files_path)):
+                bins = sorted(f for f in os.listdir(files_path) if f.lower().endswith('.bin'))
+                # Only for a single track: a multi-bin disc needs pregap and track
+                # types we cannot infer.
+                if len(bins) == 1:
+                    cue_name = f"{self._trim_file_name(bins[0])}.cue"
+                    with open(os.path.join(files_path, cue_name), 'w') as cue:
+                        cue.write(f'FILE "{bins[0]}" BINARY\n')
+                        cue.write('  TRACK 01 MODE2/2352\n')
+                        cue.write('    INDEX 01 00:00:00\n')
+                    synthesized_cue = True
+                    logger.info(f"No cue sheet in the release; generated {cue_name}")
+            
             # Convert all intermediate files to CHD
             intermediate_files = [f for f in os.listdir(files_path) 
                                if f.lower().endswith(('.cue', '.gdi'))]
             for file in intermediate_files:
-                _convert_file(file, 'chd')
+                if synthesized_cue:
+                    # The sheet is our guess, so a chdman failure is not fatal:
+                    # fall through and ship the playable .cue/.bin pair instead.
+                    try:
+                        _convert_file(file, 'chd')
+                    except Exception as e:
+                        logger.warning(f"CHD conversion from the generated cue failed: {e}")
+                else:
+                    _convert_file(file, 'chd')
                 
             # If no CHD files were created, fall back to normal processing
             if not any(f.lower().endswith('.chd') for f in os.listdir(output_path)):
