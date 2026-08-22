@@ -66,10 +66,14 @@ package-nextui: build-binary
 	@cp -rf "assets/fonts/." "$(RELEASE_DIR)/EmuDrop.pak/assets/fonts/"
 	@cp -f "dist/EmuDrop" "$(RELEASE_DIR)/EmuDrop.pak/EmuDrop"
 	@chmod +x "$(RELEASE_DIR)/EmuDrop.pak/EmuDrop" "$(RELEASE_DIR)/EmuDrop.pak/launch.sh" "$(RELEASE_DIR)/EmuDrop.pak/app_ota.sh" "$(RELEASE_DIR)/EmuDrop.pak/db_ota.sh"
-	@cd "$(RELEASE_DIR)" && zip -r "EmuDrop_NextUI.zip" "EmuDrop.pak" > /dev/null 2>&1 || true
+	@chmod +x "$(RELEASE_DIR)/EmuDrop.pak"/assets/executables/* 2>/dev/null || true
+	@cp -f pak.json "$(RELEASE_DIR)/EmuDrop.pak/pak.json"
+# The Pak Store expects the pak's contents at the root of the archive, not
+# nested inside a directory, and reads pak.json from the installed copy.
+	@cd "$(RELEASE_DIR)/EmuDrop.pak" && zip -r "../EmuDrop.pak.zip" . -x ".DS_Store" "._*" "*/.DS_Store" "*/._*" > /dev/null 2>&1 || true
 	@echo "✅ Đóng gói NextUI hoàn tất!"
 	@echo "👉 Thư mục: release/EmuDrop.pak"
-	@echo "👉 File nén: release/EmuDrop_NextUI.zip"
+	@echo "👉 File nén cho Pak Store: release/EmuDrop.pak.zip"
 
 package-crossmix: build-binary
 	@echo "📦 Đang đóng gói cho CrossMix OS (TrimUI Smart Pro / Brick)..."
@@ -79,6 +83,7 @@ package-crossmix: build-binary
 	@cp -rf "assets/fonts/." "$(RELEASE_DIR)/CrossMix/EmuDrop/assets/fonts/"
 	@cp -f "dist/EmuDrop" "$(RELEASE_DIR)/CrossMix/EmuDrop/EmuDrop"
 	@chmod +x "$(RELEASE_DIR)/CrossMix/EmuDrop/EmuDrop" "$(RELEASE_DIR)/CrossMix/EmuDrop/launch.sh" "$(RELEASE_DIR)/CrossMix/EmuDrop/app_ota.sh" "$(RELEASE_DIR)/CrossMix/EmuDrop/db_ota.sh"
+	@chmod +x "$(RELEASE_DIR)/CrossMix/EmuDrop"/assets/executables/* 2>/dev/null || true
 	@cd "$(RELEASE_DIR)/CrossMix" && zip -r "../EmuDrop_CrossMix.zip" "EmuDrop" > /dev/null 2>&1 || true
 	@echo "✅ Đóng gói CrossMix hoàn tất tại: release/CrossMix/EmuDrop"
 
@@ -90,6 +95,7 @@ package-stock: build-binary
 	@cp -rf "assets/fonts/." "$(RELEASE_DIR)/StockOS/EmuDrop/assets/fonts/"
 	@cp -f "dist/EmuDrop" "$(RELEASE_DIR)/StockOS/EmuDrop/EmuDrop"
 	@chmod +x "$(RELEASE_DIR)/StockOS/EmuDrop/EmuDrop" "$(RELEASE_DIR)/StockOS/EmuDrop/launch.sh" "$(RELEASE_DIR)/StockOS/EmuDrop/app_ota.sh" "$(RELEASE_DIR)/StockOS/EmuDrop/db_ota.sh"
+	@chmod +x "$(RELEASE_DIR)/StockOS/EmuDrop"/assets/executables/* 2>/dev/null || true
 	@cd "$(RELEASE_DIR)/StockOS" && zip -r "../EmuDrop_StockOS.zip" "EmuDrop" > /dev/null 2>&1 || true
 	@echo "✅ Đóng gói Stock OS hoàn tất tại: release/StockOS/EmuDrop"
 
@@ -101,6 +107,7 @@ package-knulli: build-binary
 	@cp -rf "assets/fonts/." "$(RELEASE_DIR)/Knulli/EmuDrop/assets/fonts/"
 	@cp -f "dist/EmuDrop" "$(RELEASE_DIR)/Knulli/EmuDrop/EmuDrop"
 	@chmod +x "$(RELEASE_DIR)/Knulli/EmuDrop/EmuDrop" "$(RELEASE_DIR)/Knulli/EmuDrop/EmuDrop.pygame"
+	@chmod +x "$(RELEASE_DIR)/Knulli/EmuDrop"/assets/executables/* 2>/dev/null || true
 	@cd "$(RELEASE_DIR)/Knulli" && zip -r "../EmuDrop_Knulli.zip" "EmuDrop" > /dev/null 2>&1 || true
 	@echo "✅ Đóng gói Knulli hoàn tất tại: release/Knulli/EmuDrop"
 
