@@ -40,13 +40,13 @@ PLATFORM_TAGS = {
     'MSX2': ('MSX',),
     'COLSGM': ('COLECO',),
     'PCECD': ('PCE',),
-    'SFX': ('PCE',),
     'GBA': ('GBA', 'MGBA'),
     'SFC': ('SFC', 'SUPA'),
     'SATELLAVIEW': ('SFC', 'SUPA'),
     'SUFAMI': ('SFC', 'SUPA'),
-    'MDMSU': ('MD',),
-    'N64DD': ('N64',),
+    # Deliberately absent: SuperGrafx, MSU-MD and the 64DD need core support
+    # the usual paks do not have, so sending them to the neighbouring folder
+    # would only turn 'invisible' into 'fails to launch'.
     # Arcade: prefer a dedicated pak, fall back to FinalBurn Neo.
     'MAME': ('MAME', 'MAME2003PLUS', 'MAME2010', 'FBN'),
     'MAME2003PLUS': ('MAME2003PLUS', 'MAME', 'MAME2010', 'FBN'),
