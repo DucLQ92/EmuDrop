@@ -6,6 +6,7 @@ import os
 import shutil
 import re
 from utils.config import Config
+from utils.system_layout import layout
 from utils.image_cache import ImageCache
 from utils.logger import logger
 import xml.etree.ElementTree as ET
@@ -230,7 +231,8 @@ class ScreenScraper:
     
     def scrape_rom(self, image_url, file_name, system):
         file_name_no_ext, _ = os.path.splitext(file_name)
-        target_image = os.environ['IMGS_DIR'].format(SYSTEM=Config.SYSTEMS_MAPPING[system], IMAGE_NAME=file_name_no_ext)
+        system_folder = layout.folder_for(system, Config.SYSTEMS_MAPPING.get(system, system))
+        target_image = os.environ['IMGS_DIR'].format(SYSTEM=system_folder, IMAGE_NAME=file_name_no_ext)
         
         os.makedirs(os.path.dirname(target_image), exist_ok=True)
         
@@ -245,7 +247,7 @@ class ScreenScraper:
             if not media_url:
                 logger.info("Trying to scrape by hashing the file")
                 roms_base = os.environ.get('ROMS_DIR', '/mnt/SDCARD/Roms/')
-                system_folder = Config.SYSTEMS_MAPPING.get(system, system)
+                system_folder = layout.folder_for(system, Config.SYSTEMS_MAPPING.get(system, system))
                 file_path = os.path.join(roms_base, system_folder, file_name)
                 media_url = self._scrape_using_file_hash(file_path, system)
             
@@ -270,7 +272,7 @@ class ScreenScraper:
         finally:
             if Config.SYSTEMS_OS == "knulli":
                 roms_base = os.environ.get('ROMS_DIR', '/mnt/SDCARD/Roms/')
-                system_folder = Config.SYSTEMS_MAPPING.get(system, system)
+                system_folder = layout.folder_for(system, Config.SYSTEMS_MAPPING.get(system, system))
                 xml_path = os.path.join(roms_base, system_folder, 'gamelist.xml')
                 new_game_data = {
                     "path": f"./{file_name}",

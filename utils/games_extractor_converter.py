@@ -3,6 +3,7 @@ import subprocess
 import zipfile
 from utils.logger import logger
 from utils.config import Config
+from utils.system_layout import layout
 import shutil
 import re
 
@@ -11,7 +12,10 @@ class GamesExtractorConverter:
         self.platform_id = game_prop.platform_id
         self.download_path = download_path
         roms_base = os.environ.get('ROMS_DIR', '/mnt/SDCARD/Roms/')
-        system_folder = Config.SYSTEMS_MAPPING.get(game_prop.platform_id, game_prop.platform_id)
+        system_folder = layout.folder_for(
+            game_prop.platform_id,
+            Config.SYSTEMS_MAPPING.get(game_prop.platform_id, game_prop.platform_id)
+        )
         self.rom_path = os.path.join(roms_base, system_folder)
         self.isExtractable = game_prop.isExtractable
         self.canBeRenamed = game_prop.canBeRenamed
@@ -341,7 +345,10 @@ class GamesExtractorConverter:
             return  # nothing that reads as box art; let the scraper do its job
 
         source = os.path.join(files_path, images[0])
-        system = Config.SYSTEMS_MAPPING.get(self.platform_id, self.platform_id)
+        system = layout.folder_for(
+            self.platform_id,
+            Config.SYSTEMS_MAPPING.get(self.platform_id, self.platform_id)
+        )
         for name in rom_names:
             target = template.format(SYSTEM=system, IMAGE_NAME=os.path.splitext(name)[0])
             if os.path.exists(target):
