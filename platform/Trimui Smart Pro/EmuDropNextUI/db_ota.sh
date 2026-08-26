@@ -17,6 +17,37 @@ API_URL="https://api.github.com/repos/$REPO/tags"
 DB_PATH="assets/catalog.db"
 TMP_DB="assets/catalog.db.new"
 
+# The check talks to GitHub before the app starts, so without this the screen
+# just stays black for as long as the network takes. NextUI has no infoscreen
+# script - it ships show2.elf/show.elf, which centre an image - so the message
+# is a pre-rendered PNG: show2's own font carries no Vietnamese diacritics.
+SPLASH_PID=""
+
+splash_stop() {
+    if [ -n "$SPLASH_PID" ]; then
+        kill "$SPLASH_PID" 2>/dev/null || true
+        wait "$SPLASH_PID" 2>/dev/null || true
+        SPLASH_PID=""
+    fi
+}
+trap splash_stop EXIT
+
+splash() {
+    splash_stop
+    image="assets/images/$1"
+    if [ -f "$image" ] && command -v show2.elf >/dev/null 2>&1; then
+        show2.elf --mode=simple --image="$image" --bgcolor=0x000000 &
+        SPLASH_PID=$!
+    elif [ -f "$image" ] && command -v show.elf >/dev/null 2>&1; then
+        show.elf "$image" 120 &
+        SPLASH_PID=$!
+    elif [ -n "$INFOSCREEN" ] && [ -f "$INFOSCREEN" ]; then
+        # Stock OS and CrossMix ship a script that draws text instead.
+        "$INFOSCREEN" -m "$2" -t 0.2 2>/dev/null || true
+    fi
+    echo "$2"
+}
+
 notify() {
     if [ -n "$INFOSCREEN" ] && [ -f "$INFOSCREEN" ]; then
         "$INFOSCREEN" -m "$1" -t "${2:-0.2}" 2>/dev/null || true
@@ -88,7 +119,7 @@ keep_local() {
     exit 0
 }
 
-echo "Checking for update for database..."
+splash "msg-db-checking.png" "Dang kiem tra cap nhat danh muc game..."
 
 local_version=$(get_local_version)
 latest_version=$(get_latest_version) || keep_local "Could not reach GitHub, or no -db release was listed."
@@ -102,7 +133,7 @@ if [ "$local_version" = "$latest_version" ]; then
 fi
 
 echo "New update available: $latest_version"
-notify "Updating game database..." 0.2
+splash "msg-db-updating.png" "Dang tai danh muc game moi..."
 
 url="https://github.com/$REPO/releases/download/$latest_version-db/catalog-$latest_version.db"
 echo "Downloading from: $url"
