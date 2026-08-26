@@ -32,9 +32,27 @@ splash_stop() {
 }
 trap splash_stop EXIT
 
+# Same setting the app itself reads, so the message matches the language the
+# user picked. Falls back to Vietnamese, which is what the app defaults to.
+UI_LANG=$(sed -n 's/.*"language"[[:space:]]*:[[:space:]]*"\([A-Za-z-]*\)".*/\1/p' \
+    assets/settings.json 2>/dev/null | head -n 1)
+[ -n "$UI_LANG" ] || UI_LANG="vi"
+
+splash_text() {
+    case "$1:$UI_LANG" in
+        checking:en) echo "Checking for catalogue update..." ;;
+        updating:en) echo "Downloading the new catalogue..." ;;
+        checking:*)  echo "Dang kiem tra cap nhat danh muc game..." ;;
+        updating:*)  echo "Dang tai danh muc game moi..." ;;
+    esac
+}
+
 splash() {
     splash_stop
-    image="assets/images/$1"
+    image="assets/images/msg-db-$1-$UI_LANG.png"
+    [ -f "$image" ] || image="assets/images/msg-db-$1-vi.png"
+    message=$(splash_text "$1")
+
     if [ -f "$image" ] && command -v show2.elf >/dev/null 2>&1; then
         show2.elf --mode=simple --image="$image" --bgcolor=0x000000 &
         SPLASH_PID=$!
@@ -43,9 +61,9 @@ splash() {
         SPLASH_PID=$!
     elif [ -n "$INFOSCREEN" ] && [ -f "$INFOSCREEN" ]; then
         # Stock OS and CrossMix ship a script that draws text instead.
-        "$INFOSCREEN" -m "$2" -t 0.2 2>/dev/null || true
+        "$INFOSCREEN" -m "$message" -t 0.2 2>/dev/null || true
     fi
-    echo "$2"
+    echo "$message"
 }
 
 notify() {
@@ -119,7 +137,7 @@ keep_local() {
     exit 0
 }
 
-splash "msg-db-checking.png" "Dang kiem tra cap nhat danh muc game..."
+splash checking
 
 local_version=$(get_local_version)
 latest_version=$(get_latest_version) || keep_local "Could not reach GitHub, or no -db release was listed."
@@ -133,7 +151,7 @@ if [ "$local_version" = "$latest_version" ]; then
 fi
 
 echo "New update available: $latest_version"
-splash "msg-db-updating.png" "Dang tai danh muc game moi..."
+splash updating
 
 url="https://github.com/$REPO/releases/download/$latest_version-db/catalog-$latest_version.db"
 echo "Downloading from: $url"
