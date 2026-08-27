@@ -1,6 +1,6 @@
 {
   "name": "EmuDrop",
-  "version": "v2.1.6.9",
+  "version": "v2.1.6.8",
   "type": "TOOL",
   "description": "Trình tải ROM cho máy chơi game cầm tay: duyệt theo hệ máy, tìm kiếm và tải game ngay trên máy. Bản Việt hóa dựa trên EmuDrop của ahmadteeb, đã tắt tự cập nhật để Pak Store lo việc đó.",
   "author": "ahmadteeb",
@@ -18,7 +18,6 @@
     "tg5050"
   ],
   "changelog": {
-    "v2.1.6.9": "Hiện thông báo trong lúc kiểm tra cập nhật danh mục game. Bước này chạy trước khi app khởi động và phải chờ mạng, trước đây màn hình cứ đen suốt thời gian đó nên dễ tưởng máy treo. Thông báo hiển thị theo đúng ngôn ngữ đang cài trong app (Việt/Anh), được dựng sẵn thành ảnh bằng font của app nên đủ dấu tiếng Việt, và tự tắt ngay khi xong.",
     "v2.1.6.8": "Gỡ ba ánh xạ thư mục chưa kiểm chứng được: SuperGrafx, MSU-MD và Nintendo 64DD trước đây được trỏ sang thư mục của hệ máy lân cận, nhưng core đi kèm không chạy được chúng (PCE.pak dùng mednafen_pce_fast, chỉ chạy PC Engine). Trỏ sang đó chỉ biến 'không thấy game' thành 'thấy game nhưng bấm vào lỗi'. Cả ba hệ này hiện chưa có game nào trong danh mục nên không ảnh hưởng gì tới máy đang dùng.",
     "v2.1.6.7": "Tự dò bố cục máy để chọn đúng thư mục tải game. EmuDrop gốc không hỗ trợ NextUI nên bảng thư mục cố định trong app không khớp với máy thật: game arcade tải về nằm ở thư mục MAME (MAME) mà máy chỉ có emulator FBN, khiến NextUI ẩn luôn cả thư mục — tải xong không thấy game đâu. Nay app quét xem máy đang cài những emulator nào và đã có sẵn thư mục ROM nào, rồi chọn thư mục đúng: arcade về Arcade (FBN) nếu chỉ có FBNeo, và tự chuyển sang MAME (MAME) nếu sau này bạn cài thêm pak MAME. Cũng hết tạo thư mục trùng lặp cạnh thư mục sẵn có. Máy không phải NextUI/MinUI thì giữ nguyên như cũ.",
     "v2.1.6.6": "Không còn chép file rác vào thư mục game. Nhiều bản phát hành (rõ nhất là NDS) đóng kèm ảnh Cover/Icon/InGame, file ghi chú và mã kiểm tra trong gói nén; trước đây chúng bị chép ra thẻ và NextUI hiện mỗi file thành một mục game. Đổi lại, nếu trong gói có sẵn ảnh bìa thì app dùng luôn ảnh đó làm ảnh bìa cho game (tự đổi sang PNG), khỏi phải tải lại từ ScreenScraper.",
